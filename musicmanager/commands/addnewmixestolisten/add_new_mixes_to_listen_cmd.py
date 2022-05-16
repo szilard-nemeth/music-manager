@@ -152,8 +152,8 @@ class DataConverter:
         field_names = [field.name for field in fields(NewMixesToListenInputFileParser.ParsedListenToMixRow)]
         cls.row_stats: RowStats = RowStats(field_names)
         for parsed_mix in parsed_mixes:
-            row: List[str] = DataConverter.convert_parsed_mix(parsed_mix, fields_by_short_name, col_indices_by_sheet_name)
-            DataConverter.update_row_stats()
+            row, values_by_fields = DataConverter.convert_parsed_mix(parsed_mix, fields_by_short_name, col_indices_by_sheet_name)
+            DataConverter.update_row_stats(values_by_fields)
             sheet_list_of_rows.append(row)
         cls.row_stats.print_stats()
         return sheet_list_of_rows
@@ -164,16 +164,16 @@ class DataConverter:
                            col_indices_by_sheet_name) -> NewMixesToListenInputFileParser.ParsedListenToMixRow:
         fields_list = fields(parsed_mix)
         row: List[str] = [""] * len(fields_list)
+        values_by_fields: Dict[str, str] = {}
         for field in fields_list:
             field_short_name = field.name
             field_obj: MixField = fields_by_short_name[field_short_name]
             col_idx = col_indices_by_sheet_name[field_obj.name_in_sheet]
             obj_value = getattr(parsed_mix, field_short_name)
             row[col_idx] = obj_value
-        return row
+            values_by_fields[field_short_name] = obj_value
+        return row, values_by_fields
 
     @classmethod
-    def update_row_stats(cls):
-        # TODO
-        #cls.row_stats.update({"name": name, "link": link, "date": date, "owners": owners})
-        pass
+    def update_row_stats(cls, values_by_fields):
+        cls.row_stats.update(values_by_fields)

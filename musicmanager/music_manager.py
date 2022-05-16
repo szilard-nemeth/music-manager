@@ -78,7 +78,7 @@ class MusicManager:
         self.setup_dirs()
 
     def setup_dirs(self, execution_mode: ExecutionMode = ExecutionMode.PRODUCTION):
-        # TODO Method is an exact copy from yarndevtools
+        # TODO Copied from yarndevtools
         strategy = None
         if execution_mode == ExecutionMode.PRODUCTION:
             strategy = ProjectRootDeterminationStrategy.SYS_PATH

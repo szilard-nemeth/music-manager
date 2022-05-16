@@ -18,19 +18,31 @@ class RowStats:
     def update(self, row_dict):
         # Update longest fields dict values if required
         for field_name in self.list_of_fields:
-            self._update_field(field_name, row_dict[field_name])
+            self._update_field(field_name, self._safe_get_value(row_dict, field_name))
 
         for field_name in self.track_unique_values:
             if field_name not in self.unique_values:
                 self.unique_values[field_name] = set()
-            self.unique_values[field_name].add(row_dict[field_name])
+            self.unique_values[field_name].add(self._safe_get_value(row_dict, field_name))
 
         # Store longest line
         sum_length = 0
         for field_name in self.list_of_fields:
-            sum_length += len(row_dict[field_name])
+            sum_length += len(self._safe_get_value(row_dict, field_name))
         if sum_length > len(self.longest_line):
-            self.longest_line = ",".join(row_dict.values())
+            self.longest_line = self._safe_join_values(row_dict)
+
+    @staticmethod
+    def _safe_get_value(row_dict, field_name):
+        val = row_dict[field_name]
+        if not val:
+            return ""
+        return val
+
+    @staticmethod
+    def _safe_join_values(row_dict, sep=","):
+        vals = [str(val or '') for val in row_dict.values()]
+        return sep.join(vals)
 
     def _update_field(self, field_name, field_value):
         if len(field_value) > len(self.longest_fields[field_name]):
