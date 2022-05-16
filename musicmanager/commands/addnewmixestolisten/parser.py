@@ -67,7 +67,7 @@ class NewMixesToListenInputFileParser:
                 matches[key] = val
                 if key in matches:
                     prev_val = matches[key]
-                    LOG.warning("Overriding previous value of field '%s'. Prev value: '%', New value: '%s'", key,
+                    LOG.warning("Overriding previous value of field '%s'. Prev value: '%s', New value: '%s'", key,
                                 prev_val,
                                 val)
                     matches[key] = val
