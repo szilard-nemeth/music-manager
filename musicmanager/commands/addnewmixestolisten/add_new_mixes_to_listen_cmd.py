@@ -1,5 +1,3 @@
-import argparse
-import datetime
 import logging
 import os
 from dataclasses import fields
@@ -8,12 +6,13 @@ from pprint import pformat
 from typing import List, Dict
 
 from googleapiwrapper.google_sheet import GSheetOptions, GSheetWrapper
+from pythoncommons.file_parser.parser_config_reader import GenericLineParserConfig, ParserConfigReader
 from pythoncommons.file_utils import FindResultType
 from pythoncommons.project_utils import SimpleProjectUtils
 from pythoncommons.result_printer import BasicResultPrinter
 
-from musicmanager.commands.addnewmixestolisten.config import ParserConfigReader, MixField
-from musicmanager.commands.addnewmixestolisten.parser import InputFileParser, DiagnosticConfig
+from musicmanager.commands.addnewmixestolisten.config import MixField, ParserConfig
+from musicmanager.commands.addnewmixestolisten.parser import NewMixesToListenInputFileParser
 from musicmanager.commands_common import CommandType, CommandAbs
 from musicmanager.constants import LocalDirs
 from musicmanager.statistics import RowStats
@@ -108,21 +107,31 @@ class AddNewMixesToListenCommand(CommandAbs):
 
     def run(self):
         LOG.info(f"Starting to add new mixes to listen to sheet. \n Config: {str(self.config)}")
-        config_reader: ParserConfigReader = ParserConfigReader.read_from_file(filename=self.config.parser_conf_json)
+        config_reader: ParserConfigReader = ParserConfigReader.read_from_file(filename=self.config.parser_conf_json,
+                                                                              obj_data_class=ParserConfig,
+                                                                              config_type=GenericLineParserConfig)
         LOG.info("Read project config: %s", pformat(config_reader.config))
 
         # TODO
         # Example line of input file (various fields, but they can only be parsed in strict order with named regex groups):
         # title:"test title" addedat:2022.04.20 listenedat:2022.05.02 tracksearch:yes tracksearchdone:yes lc:2 relisten:yes genre:"progressive house" comment:"test comment__" https://www.facebook.com/100001272234500/posts/5240658839319805/  link2:http://google.com link3:http://google22.com
-        parser = InputFileParser(config_reader.config, DiagnosticConfig(print_match_objs=True, print_parsed_mixes=True))
-        parser.parse(self.config.src_file)
-        self.header = list(parser.config.fields_by_sheet_name.keys())
+        parser = NewMixesToListenInputFileParser(config_reader)
+        parsed_objs = parser.parse(self.config.src_file)
+        self.header = list(parser.extended_config.fields_by_sheet_name.keys())
         col_indices_by_sheet_name = self.config.gsheet_wrapper.get_column_indices_of_header(self.header)
-        self.data = DataConverter.convert_data_to_rows(parser.parsed_mixes, parser.config.fields_by_short_name, col_indices_by_sheet_name)
+        self.data = DataConverter.convert_data_to_rows(parsed_objs, parser.extended_config.fields_by_short_name, col_indices_by_sheet_name)
+
+        if not self.header:
+            raise ValueError("Header is empty")
+
+        if not self.data:
+            raise ValueError("Data is empty")
+
         self.print_results_table()
         if self.config.operation_mode == OperationMode.GSHEET:
             LOG.info("Updating Google sheet with data...")
-            self.update_gsheet()
+            # TODO
+            # self.update_gsheet()
         LOG.info("Finished adding new mixes to listen")
 
     def print_results_table(self):
@@ -142,11 +151,11 @@ class DataConverter:
     row_stats = None
 
     @classmethod
-    def convert_data_to_rows(cls, parsed_mixes: List[InputFileParser.ParsedListenToMixRow],
+    def convert_data_to_rows(cls, parsed_mixes: List[NewMixesToListenInputFileParser.ParsedListenToMixRow],
                              fields_by_short_name: Dict[str, MixField],
                              col_indices_by_sheet_name: Dict[str, int]) -> List[List[str]]:
         sheet_list_of_rows: List[List[str]] = []
-        field_names = [field.name for field in fields(InputFileParser.ParsedListenToMixRow)]
+        field_names = [field.name for field in fields(NewMixesToListenInputFileParser.ParsedListenToMixRow)]
         cls.row_stats: RowStats = RowStats(field_names)
         for parsed_mix in parsed_mixes:
             row: List[str] = DataConverter.convert_parsed_mix(parsed_mix, fields_by_short_name, col_indices_by_sheet_name)
@@ -156,9 +165,9 @@ class DataConverter:
         return sheet_list_of_rows
 
     @classmethod
-    def convert_parsed_mix(cls, parsed_mix: InputFileParser.ParsedListenToMixRow,
+    def convert_parsed_mix(cls, parsed_mix: NewMixesToListenInputFileParser.ParsedListenToMixRow,
                            fields_by_short_name,
-                           col_indices_by_sheet_name) -> InputFileParser.ParsedListenToMixRow:
+                           col_indices_by_sheet_name) -> NewMixesToListenInputFileParser.ParsedListenToMixRow:
         fields_list = fields(parsed_mix)
         row: List[str] = [""] * len(fields_list)
         for field in fields_list:
