@@ -40,7 +40,6 @@ class NewMixesToListenInputFileParser:
 
         self.generic_line_by_line_parser = GenericLineByLineParser(
             self.generic_parser_config,
-            regex=RegexGenerator.create_final_regex(self.generic_parser_config),
             diagnostic_config=diagnostic_config)
 
     def parse(self, file: str):
