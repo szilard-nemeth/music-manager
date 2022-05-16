@@ -54,7 +54,6 @@ class GSheetArguments:
 class CommandType(Enum):
     ADD_NEW_MIXES_TO_LISTEN = ("add_new_mixes_to_listen", "add-new-mixes-to-listen", False)
 
-    # TODO Unify value vs. output_dir_name: Using both causes confusion
     def __init__(self, value, output_dir_name, session_based: bool, session_link_name: str = ""):
         self.real_name = value
         self.session_based = session_based

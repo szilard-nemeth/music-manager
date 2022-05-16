@@ -86,7 +86,10 @@ class AddNewMixesToListenCommandConfig:
 
 class AddNewMixesToListenCommand(CommandAbs):
     def __init__(self, args, parser=None):
+        super().__init__()
         self.config = AddNewMixesToListenCommandConfig(args, parser=parser)
+        self.data = None
+        self.header = None
 
     @staticmethod
     def create_parser(subparsers):
@@ -94,8 +97,6 @@ class AddNewMixesToListenCommand(CommandAbs):
             CommandType.ADD_NEW_MIXES_TO_LISTEN.name,
             help="Add new mixes to listen." "Example: --src_file /tmp/file1",
         )
-
-        #parser.add_argument('--src_file', type=argparse.FileType('r'))
         parser.add_argument('--src_file', type=str)
         parser.set_defaults(func=AddNewMixesToListenCommand.execute)
 
@@ -110,15 +111,14 @@ class AddNewMixesToListenCommand(CommandAbs):
                                                                               obj_data_class=ParserConfig,
                                                                               config_type=GenericLineParserConfig)
         LOG.info("Read project config: %s", pformat(config_reader.config))
-
-        # TODO
-        # Example line of input file (various fields, but they can only be parsed in strict order with named regex groups):
-        # title:"test title" addedat:2022.04.20 listenedat:2022.05.02 tracksearch:yes tracksearchdone:yes lc:2 relisten:yes genre:"progressive house" comment:"test comment__" https://www.facebook.com/100001272234500/posts/5240658839319805/  link2:http://google.com link3:http://google22.com
         parser = NewMixesToListenInputFileParser(config_reader)
         parsed_objs = parser.parse(self.config.src_file)
         self.header = list(parser.extended_config.fields_by_sheet_name.keys())
-        col_indices_by_sheet_name = self.config.gsheet_wrapper.get_column_indices_of_header(self.header)
-        self.data = DataConverter.convert_data_to_rows(parsed_objs, parser.extended_config.fields_by_short_name, col_indices_by_sheet_name)
+        if self.config.operation_mode == OperationMode.GSHEET:
+            col_indices_by_of_fields = self.config.gsheet_wrapper.get_column_indices_of_header(self.header)
+        else:
+            col_indices_by_of_fields = {col_name: idx for idx, col_name in enumerate(self.header)}
+        self.data = DataConverter.convert_data_to_rows(parsed_objs, parser.extended_config.fields_by_short_name, col_indices_by_of_fields)
 
         if not self.header:
             raise ValueError("Header is empty")
@@ -126,21 +126,16 @@ class AddNewMixesToListenCommand(CommandAbs):
         if not self.data:
             raise ValueError("Data is empty")
 
-        self.print_results_table()
+        BasicResultPrinter.print_table(self.data, self.header)
         if self.config.operation_mode == OperationMode.GSHEET:
             LOG.info("Updating Google sheet with data...")
-            # TODO
-            # self.update_gsheet()
+            self.update_gsheet()
+        elif self.config.operation_mode == OperationMode.DRY_RUN:
+            LOG.info("[DRY-RUN] Would add the following rows to Google Sheets: ")
+            LOG.info(self.data)
         LOG.info("Finished adding new mixes to listen")
 
-    def print_results_table(self):
-        if not self.data:
-            raise ValueError("Data is not yet set, please call sync method first!")
-        BasicResultPrinter.print_table(self.data, self.header)
-
     def update_gsheet(self):
-        if not self.data:
-            raise ValueError("Data is not yet set, please call sync method first!")
         self.config.gsheet_wrapper.write_data_to_new_rows(self.header, self.data, clear_range=False)
 
 
