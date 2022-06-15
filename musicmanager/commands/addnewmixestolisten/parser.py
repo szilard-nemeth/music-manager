@@ -80,7 +80,6 @@ class NewMixesToListenInputFileParser:
         for key, val in copy.copy(matches).items():
             if GREEDY_FIELD_POSTFIX in key:
                 key = key.replace(GREEDY_FIELD_POSTFIX, "")
-                matches[key] = val
                 if key in matches:
                     prev_val = matches[key]
                     LOG.warning("Overriding previous value of field '%s'. Prev value: '%s', New value: '%s'", key,
@@ -107,6 +106,7 @@ class ParsedListenToMixRowFieldUtils:
     @classmethod
     def _convert_keyword_if_any(cls, field_name):
         # Dataclass attribute names can't be keywords, e.g. 'from'
+        # so it is converted to from__
         # TODO Is this safe to do so only here?
         if keyword.iskeyword(field_name):
             return field_name + cls.KEYWORD_POSTFIX_MARKER
