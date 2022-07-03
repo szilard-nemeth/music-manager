@@ -31,7 +31,6 @@ class NewMixesToListenInputFileParserTest(unittest.TestCase):
     def setUpClass(cls):
         cls._setup_logging()
         cls.repo_root_dir = FileUtils.find_repo_root_dir(__file__, REPO_ROOT_DIRNAME)
-        cls._setup_dirs()
 
         cls.parser_config_dir = SimpleProjectUtils.get_project_dir(
             basedir=LocalDirs.REPO_ROOT_DIR,
@@ -58,15 +57,6 @@ class NewMixesToListenInputFileParserTest(unittest.TestCase):
         CMD_LOG.propagate = False
         CMD_LOG.addHandler(handler)
         handler.setFormatter(logging.Formatter("%(message)s"))
-
-    @classmethod
-    def _setup_dirs(cls):
-        # TODO
-        pass
-        # some_dir = SimpleProjectUtils.get_project_dir(
-        #         basedir=cls.repo_root_dir, parent_dir=PROJECT_NAME, dir_to_find="commands",
-        #         find_result_type=FindResultType.DIRS
-        #     )
 
     # title:"test title" addedat:2022.04.20 listenedat:2022.05.02 tracksearch:yes tracksearchdone:yes lc:2 relisten:yes genre:"progressive house" comment:"test comment__"  https://www.facebook.com/100001272234500/posts/5240658839319805/ link2:http://google.com link3:http://google22.com
     def test_parser_one_word(self):
