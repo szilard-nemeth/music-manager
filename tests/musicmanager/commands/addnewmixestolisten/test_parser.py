@@ -122,7 +122,7 @@ class NewMixesToListenInputFileParserTest(unittest.TestCase):
     def _convert_field_names(f_tuples):
         converted_fields = []
         for f_tup in f_tuples:
-            converted_key = Fields.convert_dataclass_property_name_to_config_field_name(f_tup[0], lower=True)
+            converted_key = NewMixesToListenInputFileParserTest._convert_dataclass_property_name_to_config_field_name(f_tup[0], lower=True)
             converted_key = Fields._convert_keyword_if_any(converted_key)
             converted_fields.append((converted_key, f_tup[1]))
         return converted_fields
@@ -141,3 +141,16 @@ class NewMixesToListenInputFileParserTest(unittest.TestCase):
         FileUtils.create_new_empty_file(TEXTFILE)
         FileUtils.write_to_file(TEXTFILE, "\n".join(lines))
 
+    @staticmethod
+    def _convert_dataclass_property_name_to_config_field_name(dc_prop_name: str, lower=False):
+        dc_prop_name = NewMixesToListenInputFileParserTest._reverse_convert_keyword_if_any(dc_prop_name)
+        if lower:
+            return dc_prop_name.lower()
+        return dc_prop_name.upper()
+
+    @staticmethod
+    def _reverse_convert_keyword_if_any(field_name):
+        if field_name.endswith(Fields.KEYWORD_POSTFIX_MARKER):
+            postfix_len = len(Fields.KEYWORD_POSTFIX_MARKER)
+            return field_name[:-postfix_len]
+        return field_name

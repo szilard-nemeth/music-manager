@@ -11,7 +11,7 @@ from pythoncommons.file_utils import FindResultType
 from pythoncommons.project_utils import SimpleProjectUtils
 from pythoncommons.result_printer import BasicResultPrinter
 
-from musicmanager.commands.addnewmixestolisten.config import MixField, ParserConfig, Fields
+from musicmanager.commands.addnewmixestolisten.config import ParserConfig, Fields, Field
 from musicmanager.commands.addnewmixestolisten.parser import NewMixesToListenInputFileParser
 from musicmanager.commands_common import CommandType, CommandAbs
 from musicmanager.constants import LocalDirs
@@ -167,8 +167,8 @@ class DataConverter:
         values_by_fields: Dict[str, str] = {}
         for field in fields_list:
             field_short_name = field.name
-            field_obj: MixField = fields_obj.by_short_name[field_short_name]
-            col_idx = col_indices_by_sheet_name[field_obj.name_in_sheet]
+            field_obj: Field = fields_obj.by_short_name[field_short_name]
+            col_idx = col_indices_by_sheet_name[field_obj.mix_field.name_in_sheet]
             obj_value = getattr(parsed_mix, field_short_name)
             row[col_idx] = obj_value
             values_by_fields[field_short_name] = obj_value

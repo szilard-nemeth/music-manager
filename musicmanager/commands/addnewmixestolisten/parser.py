@@ -1,14 +1,11 @@
-import copy
-import keyword
 import logging
-import typing
-from dataclasses import field, make_dataclass
+from dataclasses import make_dataclass
 from typing import Dict
 
 from pythoncommons.file_parser.input_file_parser import DiagnosticConfig, GenericLineByLineParser
 from pythoncommons.file_parser.parser_config_reader import ParserConfigReader
 
-from musicmanager.commands.addnewmixestolisten.config import ParserConfig, Fields
+from musicmanager.commands.addnewmixestolisten.config import ParserConfig
 
 LOG = logging.getLogger(__name__)
 
