@@ -85,7 +85,7 @@ class NewMixesToListenInputFileParser:
                     LOG.warning("Overriding previous value of field '%s'. Prev value: '%s', New value: '%s'", key,
                                 prev_val,
                                 val)
-                    matches[key] = val
+                matches[key] = val
 
 
 class ParsedListenToMixRowFieldUtils:

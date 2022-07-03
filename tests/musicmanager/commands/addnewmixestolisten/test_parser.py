@@ -14,6 +14,8 @@ from musicmanager.commands.addnewmixestolisten.parser import NewMixesToListenInp
     ParsedListenToMixRowFieldUtils
 from musicmanager.constants import LocalDirs
 
+A_REAL_LINK = "https://soundcloud.com/sebabusto/sebastian-busto-moonlight-radio-show-noviembre-2021?in=sebabusto/sets/moonlight-radio-show"
+
 TEXTFILE = "/tmp/pythontest/textfile"
 
 LOG = logging.getLogger(__name__)
@@ -97,20 +99,21 @@ class NewMixesToListenInputFileParserTest(unittest.TestCase):
         self._assert_field_having_value(self.parsed_objs[0], [("title", "test_title"), ("link_1", "https://google.com")])
 
     def test_parser_parse_from_field(self):
-        self._write_to_file(["from:Someone addedat:05.03 https://soundcloud.com/sebabusto/sebastian-busto-moonlight-radio-show-noviembre-2021?in=sebabusto/sets/moonlight-radio-show"])
+        self._write_to_file([f"from:Someone addedat:05.03 ${A_REAL_LINK}"])
         self.read_config_and_parse_input_file()
 
         self.assertTrue(len(self.parsed_objs) == 1)
         self._assert_field_having_value(self.parsed_objs[0], [("title", None),
                                                               ("from", "Someone"),
-                                                              ("link_1", "https://soundcloud.com/sebabusto/sebastian-busto-moonlight-radio-show-noviembre-2021?in=sebabusto/sets/moonlight-radio-show"),
+                                                              ("link_1", A_REAL_LINK),
                                                               ("added_at", "05.03")])
 
     def _assert_field_having_value(self, parsed_obj, fields_with_values: List[Tuple[str, str]]):
         self.assertTrue(isinstance(parsed_obj, self.parsed_obj_dataclass))
         fields_with_values = self._convert_field_names(fields_with_values)
         for f_name, f_val in fields_with_values:
-            self.assertEqual(f_val, ParsedListenToMixRowFieldUtils.safe_get_attr(parsed_obj, f_name), "Parsed object: " + str(parsed_obj))
+            self.assertEqual(f_val, ParsedListenToMixRowFieldUtils.safe_get_attr(parsed_obj, f_name),
+                             msg="Parsed object: " + str(parsed_obj) + ", field: " + f_name)
 
         f_names = [f[0] for f in fields_with_values]
         rest_of_the_fields = self.all_field_names.difference(set(f_names))
