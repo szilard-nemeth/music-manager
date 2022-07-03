@@ -11,7 +11,7 @@ from pythoncommons.file_utils import FindResultType
 from pythoncommons.project_utils import SimpleProjectUtils
 from pythoncommons.result_printer import BasicResultPrinter
 
-from musicmanager.commands.addnewmixestolisten.config import MixField, ParserConfig
+from musicmanager.commands.addnewmixestolisten.config import MixField, ParserConfig, Fields
 from musicmanager.commands.addnewmixestolisten.parser import NewMixesToListenInputFileParser
 from musicmanager.commands_common import CommandType, CommandAbs
 from musicmanager.constants import LocalDirs
@@ -113,12 +113,12 @@ class AddNewMixesToListenCommand(CommandAbs):
         LOG.info("Read project config: %s", pformat(config_reader.config))
         parser = NewMixesToListenInputFileParser(config_reader)
         parsed_objs = parser.parse(self.config.src_file)
-        self.header = list(parser.extended_config.fields_by_sheet_name.keys())
+        self.header = list(parser.extended_config.fields.by_sheet_name.keys())
         if self.config.operation_mode == OperationMode.GSHEET:
             col_indices_by_of_fields = self.config.gsheet_wrapper.get_column_indices_of_header(self.header)
         else:
             col_indices_by_of_fields = {col_name: idx for idx, col_name in enumerate(self.header)}
-        self.data = DataConverter.convert_data_to_rows(parsed_objs, parser.extended_config.fields_by_short_name, col_indices_by_of_fields)
+        self.data = DataConverter.convert_data_to_rows(parsed_objs, parser.extended_config.fields, col_indices_by_of_fields)
 
         if not self.header:
             raise ValueError("Header is empty")
@@ -146,28 +146,28 @@ class DataConverter:
 
     @classmethod
     def convert_data_to_rows(cls, parsed_mixes: List[NewMixesToListenInputFileParser.ParsedListenToMixRow],
-                             fields_by_short_name: Dict[str, MixField],
+                             fields_obj: Fields,
                              col_indices_by_sheet_name: Dict[str, int]) -> List[List[str]]:
         sheet_list_of_rows: List[List[str]] = []
         field_names = [field.name for field in fields(NewMixesToListenInputFileParser.ParsedListenToMixRow)]
         cls.row_stats: RowStats = RowStats(field_names)
         for parsed_mix in parsed_mixes:
-            row, values_by_fields = DataConverter.convert_parsed_mix(parsed_mix, fields_by_short_name, col_indices_by_sheet_name)
+            row, values_by_fields = DataConverter._convert_parsed_mix(parsed_mix, fields_obj, col_indices_by_sheet_name)
             DataConverter.update_row_stats(values_by_fields)
             sheet_list_of_rows.append(row)
         cls.row_stats.print_stats()
         return sheet_list_of_rows
 
     @classmethod
-    def convert_parsed_mix(cls, parsed_mix: NewMixesToListenInputFileParser.ParsedListenToMixRow,
-                           fields_by_short_name,
-                           col_indices_by_sheet_name) -> NewMixesToListenInputFileParser.ParsedListenToMixRow:
+    def _convert_parsed_mix(cls, parsed_mix: NewMixesToListenInputFileParser.ParsedListenToMixRow,
+                            fields_obj: Fields,
+                            col_indices_by_sheet_name) -> NewMixesToListenInputFileParser.ParsedListenToMixRow:
         fields_list = fields(parsed_mix)
         row: List[str] = [""] * len(fields_list)
         values_by_fields: Dict[str, str] = {}
         for field in fields_list:
             field_short_name = field.name
-            field_obj: MixField = fields_by_short_name[field_short_name]
+            field_obj: MixField = fields_obj.by_short_name[field_short_name]
             col_idx = col_indices_by_sheet_name[field_obj.name_in_sheet]
             obj_value = getattr(parsed_mix, field_short_name)
             row[col_idx] = obj_value

@@ -9,9 +9,8 @@ from pythoncommons.file_utils import FileUtils, FindResultType
 from pythoncommons.object_utils import ObjUtils
 from pythoncommons.project_utils import SimpleProjectUtils
 
-from musicmanager.commands.addnewmixestolisten.config import ParserConfig
-from musicmanager.commands.addnewmixestolisten.parser import NewMixesToListenInputFileParser, \
-    ParsedListenToMixRowFieldUtils
+from musicmanager.commands.addnewmixestolisten.config import ParserConfig, Fields
+from musicmanager.commands.addnewmixestolisten.parser import NewMixesToListenInputFileParser
 from musicmanager.constants import LocalDirs
 
 A_REAL_LINK = "https://soundcloud.com/sebabusto/sebastian-busto-moonlight-radio-show-noviembre-2021?in=sebabusto/sets/moonlight-radio-show"
@@ -112,7 +111,7 @@ class NewMixesToListenInputFileParserTest(unittest.TestCase):
         self.assertTrue(isinstance(parsed_obj, self.parsed_obj_dataclass))
         fields_with_values = self._convert_field_names(fields_with_values)
         for f_name, f_val in fields_with_values:
-            self.assertEqual(f_val, ParsedListenToMixRowFieldUtils.safe_get_attr(parsed_obj, f_name),
+            self.assertEqual(f_val, Fields.safe_get_attr(parsed_obj, f_name),
                              msg="Parsed object: " + str(parsed_obj) + ", field: " + f_name)
 
         f_names = [f[0] for f in fields_with_values]
@@ -123,8 +122,8 @@ class NewMixesToListenInputFileParserTest(unittest.TestCase):
     def _convert_field_names(f_tuples):
         converted_fields = []
         for f_tup in f_tuples:
-            converted_key = ParsedListenToMixRowFieldUtils.convert_dataclass_property_name_to_config_field_name(f_tup[0], lower=True)
-            converted_key = ParsedListenToMixRowFieldUtils._convert_keyword_if_any(converted_key)
+            converted_key = Fields.convert_dataclass_property_name_to_config_field_name(f_tup[0], lower=True)
+            converted_key = Fields._convert_keyword_if_any(converted_key)
             converted_fields.append((converted_key, f_tup[1]))
         return converted_fields
 
@@ -134,7 +133,7 @@ class NewMixesToListenInputFileParserTest(unittest.TestCase):
                                                                               config_type=GenericLineParserConfig)
         parser = NewMixesToListenInputFileParser(config_reader)
         self.parsed_obj_dataclass = NewMixesToListenInputFileParser.ParsedListenToMixRow
-        self.all_field_names: Set[str] = set(parser.dataclass_fields.keys())
+        self.all_field_names: Set[str] = set(parser.extended_config.fields.dataclass_fields.keys())
         self.parsed_objs = parser.parse(TEXTFILE)
 
     @staticmethod
