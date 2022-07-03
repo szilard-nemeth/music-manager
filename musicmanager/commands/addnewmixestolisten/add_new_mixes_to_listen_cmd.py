@@ -161,16 +161,15 @@ class DataConverter:
     @classmethod
     def _convert_parsed_mix(cls, parsed_mix: NewMixesToListenInputFileParser.ParsedListenToMixRow,
                             fields_obj: Fields,
-                            col_indices_by_sheet_name) -> NewMixesToListenInputFileParser.ParsedListenToMixRow:
-        field_names = [field.name for field in fields_obj.fields]
-        row: List[str] = [""] * len(field_names)
+                            col_indices_by_sheet_name: Dict[str, int]) -> NewMixesToListenInputFileParser.ParsedListenToMixRow:
+        no_of_fields = len(fields_obj.fields)
+        row: List[str] = [""] * no_of_fields
         values_by_fields: Dict[str, str] = {}
-        for field_name in field_names:
-            field_obj: Field = fields_obj.by_short_name[field_name]
-            col_idx = col_indices_by_sheet_name[field_obj.mix_field.name_in_sheet]
-            obj_value = Fields.safe_get_attr(parsed_mix, field_name)
+        for field in fields_obj.fields:
+            col_idx = col_indices_by_sheet_name[field.mix_field.name_in_sheet]
+            obj_value = Fields.safe_get_attr(parsed_mix, field.name)
             row[col_idx] = obj_value
-            values_by_fields[field_name] = obj_value
+            values_by_fields[field.name] = obj_value
         return row, values_by_fields
 
     @classmethod
