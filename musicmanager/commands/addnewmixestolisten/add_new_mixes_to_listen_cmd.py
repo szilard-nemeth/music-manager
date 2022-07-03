@@ -149,7 +149,7 @@ class DataConverter:
                              fields_obj: Fields,
                              col_indices_by_sheet_name: Dict[str, int]) -> List[List[str]]:
         sheet_list_of_rows: List[List[str]] = []
-        field_names = [field.name for field in fields(NewMixesToListenInputFileParser.ParsedListenToMixRow)]
+        field_names = [field.name for field in fields_obj.fields]
         cls.row_stats: RowStats = RowStats(field_names)
         for parsed_mix in parsed_mixes:
             row, values_by_fields = DataConverter._convert_parsed_mix(parsed_mix, fields_obj, col_indices_by_sheet_name)
@@ -162,16 +162,15 @@ class DataConverter:
     def _convert_parsed_mix(cls, parsed_mix: NewMixesToListenInputFileParser.ParsedListenToMixRow,
                             fields_obj: Fields,
                             col_indices_by_sheet_name) -> NewMixesToListenInputFileParser.ParsedListenToMixRow:
-        fields_list = fields(parsed_mix)
-        row: List[str] = [""] * len(fields_list)
+        field_names = [field.name for field in fields_obj.fields]
+        row: List[str] = [""] * len(field_names)
         values_by_fields: Dict[str, str] = {}
-        for field in fields_list:
-            field_short_name = field.name
-            field_obj: Field = fields_obj.by_short_name[field_short_name]
+        for field_name in field_names:
+            field_obj: Field = fields_obj.by_short_name[field_name]
             col_idx = col_indices_by_sheet_name[field_obj.mix_field.name_in_sheet]
-            obj_value = getattr(parsed_mix, field_short_name)
+            obj_value = Fields.safe_get_attr(parsed_mix, field_name)
             row[col_idx] = obj_value
-            values_by_fields[field_short_name] = obj_value
+            values_by_fields[field_name] = obj_value
         return row, values_by_fields
 
     @classmethod
