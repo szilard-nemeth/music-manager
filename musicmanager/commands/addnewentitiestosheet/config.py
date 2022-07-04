@@ -13,14 +13,14 @@ LOG = logging.getLogger(__name__)
 
 @dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass(eq=True, frozen=True)
-class MixField:
+class EntityField:
     name_in_sheet: str
     human_readable_name: str
 
 
 @dataclass(eq=True, frozen=True)
 class Field:
-    mix_field: MixField
+    entity_field: EntityField
     name: str
     dataclass_name: str
 
@@ -34,9 +34,9 @@ class Fields:
     by_short_name: Dict[str, Field] = field(default_factory=dict)
     dataclass_fields = None
 
-    def post_init(self, fields: Dict[str, MixField]):
+    def post_init(self, fields: Dict[str, EntityField]):
         self.fields = self._create_field_objs(fields)
-        self.by_sheet_name = {field.mix_field.name_in_sheet: field for field in self.fields}
+        self.by_sheet_name = {field.entity_field.name_in_sheet: field for field in self.fields}
         self.by_short_name = {field.name: field for field in self.fields}
 
         key_conv_func = self._convert_to_dataclass_prop_name
@@ -46,12 +46,12 @@ class Fields:
             raise ValueError("Dataclass fields are empty!")
 
     @staticmethod
-    def _create_field_objs(src_fields: Dict[str, MixField]):
+    def _create_field_objs(src_fields: Dict[str, EntityField]):
         fields = []
-        for field_name, mix_field in src_fields.items():
+        for field_name, entity_field in src_fields.items():
             field_name = Fields._convert_field_to_field_key(field_name)
             dataclass_name = Fields._convert_to_dataclass_prop_name(field_name)
-            fields.append(Field(mix_field, field_name, dataclass_name))
+            fields.append(Field(entity_field, field_name, dataclass_name))
         return fields
 
     def get_list_of_dataclass_fields(self):
@@ -116,7 +116,7 @@ class Fields:
 @dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass
 class ParserSettings:
-    fields: Dict[str, MixField] = field(default_factory=dict)
+    fields: Dict[str, EntityField] = field(default_factory=dict)
 
 
 @dataclass_json(letter_case=LetterCase.CAMEL)

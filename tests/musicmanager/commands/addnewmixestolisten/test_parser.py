@@ -9,8 +9,8 @@ from pythoncommons.file_utils import FileUtils, FindResultType
 from pythoncommons.object_utils import ObjUtils
 from pythoncommons.project_utils import SimpleProjectUtils
 
-from musicmanager.commands.addnewmixestolisten.config import ParserConfig, Fields
-from musicmanager.commands.addnewmixestolisten.parser import NewMixesToListenInputFileParser
+from musicmanager.commands.addnewentitiestosheet.config import ParserConfig, Fields
+from musicmanager.commands.addnewentitiestosheet.parser import MusicEntityInputFileParser
 from musicmanager.constants import LocalDirs
 
 A_REAL_LINK = "https://soundcloud.com/sebabusto/sebastian-busto-moonlight-radio-show-noviembre-2021?in=sebabusto/sets/moonlight-radio-show"
@@ -121,10 +121,10 @@ class NewMixesToListenInputFileParserTest(unittest.TestCase):
         config_reader: ParserConfigReader = ParserConfigReader.read_from_file(filename=self.parser_conf_json,
                                                                               obj_data_class=ParserConfig,
                                                                               config_type=GenericLineParserConfig)
-        parser = NewMixesToListenInputFileParser(config_reader)
+        parser = MusicEntityInputFileParser(config_reader)
 
-        from musicmanager.commands.addnewmixestolisten.parser import ParsedListenToMixRow
-        self.parsed_obj_dataclass = ParsedListenToMixRow
+        from musicmanager.commands.addnewentitiestosheet.parser import ParsedMusicEntity
+        self.parsed_obj_dataclass = ParsedMusicEntity
         self.all_field_names: Set[str] = set(parser.extended_config.fields.dataclass_fields.keys())
         self.parsed_objs = parser.parse(TEXTFILE)
 

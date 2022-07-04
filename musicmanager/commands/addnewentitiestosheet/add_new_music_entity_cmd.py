@@ -10,9 +10,9 @@ from pythoncommons.file_utils import FindResultType
 from pythoncommons.project_utils import SimpleProjectUtils
 from pythoncommons.result_printer import BasicResultPrinter
 
-from musicmanager.commands.addnewmixestolisten.config import ParserConfig, Fields, Field
-from musicmanager.commands.addnewmixestolisten.parser import NewMixesToListenInputFileParser
-import musicmanager.commands.addnewmixestolisten.parser as p
+from musicmanager.commands.addnewentitiestosheet.config import ParserConfig, Fields, Field
+from musicmanager.commands.addnewentitiestosheet.parser import MusicEntityInputFileParser
+import musicmanager.commands.addnewentitiestosheet.parser as p
 from musicmanager.commands_common import CommandType, CommandAbs
 from musicmanager.common import Duration
 from musicmanager.constants import LocalDirs
@@ -44,7 +44,7 @@ class OperationMode(Enum):
     DRY_RUN = "DRYRUN"
 
 
-class AddNewMixesToListenCommandConfig:
+class AddNewMusicEntityCommandConfig:
     def __init__(self, args, parser=None):
         self.gsheet_wrapper = None
         self._validate(args, parser)
@@ -105,21 +105,21 @@ class AddNewMixesToListenCommandConfig:
         )
 
 
-class AddNewMixesToListenCommand(CommandAbs):
+class AddNewMusicEntityCommand(CommandAbs):
     def __init__(self, args, parser=None):
         super().__init__()
-        self.config = AddNewMixesToListenCommandConfig(args, parser=parser)
+        self.config = AddNewMusicEntityCommandConfig(args, parser=parser)
         self.data = None
         self.header = None
 
     @staticmethod
     def create_parser(subparsers):
         parser = subparsers.add_parser(
-            CommandType.ADD_NEW_MIXES_TO_LISTEN.name,
+            CommandType.ADD_NEW_MUSIC_ENTITY.name,
             help="Add new mixes to listen." "Example: --src_file /tmp/file1",
         )
         parser.add_argument('--src_file', type=str)
-        parser.set_defaults(func=AddNewMixesToListenCommand.execute)
+        parser.set_defaults(func=AddNewMusicEntityCommand.execute)
         parser.add_argument('--duplicate-detection',
                             action='store_true',
                             default=True,
@@ -128,16 +128,16 @@ class AddNewMixesToListenCommand(CommandAbs):
 
     @staticmethod
     def execute(args, parser=None):
-        command = AddNewMixesToListenCommand(args)
+        command = AddNewMusicEntityCommand(args)
         command.run()
 
     def run(self):
-        LOG.info(f"Starting to add new mixes to listen to sheet. \n Config: {str(self.config)}")
+        LOG.info(f"Starting to add new music entities. \n Config: {str(self.config)}")
         config_reader: ParserConfigReader = ParserConfigReader.read_from_file(filename=self.config.parser_conf_json,
                                                                               obj_data_class=ParserConfig,
                                                                               config_type=GenericLineParserConfig)
         LOG.info("Read project config: %s", pformat(config_reader.config))
-        parser = NewMixesToListenInputFileParser(config_reader)
+        parser = MusicEntityInputFileParser(config_reader)
         parsed_objs = parser.parse(self.config.src_file)
 
         self.header = list(parser.extended_config.fields.by_sheet_name.keys())
@@ -170,7 +170,7 @@ class AddNewMixesToListenCommand(CommandAbs):
         elif self.config.operation_mode == OperationMode.DRY_RUN:
             LOG.info("[DRY-RUN] Would add the following rows to Google Sheets: ")
             LOG.info(self.data)
-        LOG.info("Finished adding new mixes to listen")
+        LOG.info("Finished adding new music entities")
 
     @staticmethod
     def _create_music_entities(parsed_objs):
@@ -192,7 +192,7 @@ class AddNewMixesToListenCommand(CommandAbs):
         pass
 
     @staticmethod
-    def filter_duplicates(objs_from_sheet: List[p.ParsedListenToMixRow],
+    def filter_duplicates(objs_from_sheet: List[p.ParsedMusicEntity],
                           parsed_objs):
         existing_titles = set([obj.title for obj in objs_from_sheet])
         existing_links = set([obj.link_1 for obj in objs_from_sheet])
@@ -235,21 +235,21 @@ class DataConverter:
         field_names = [field.name for field in fields_obj.fields]
         cls.row_stats: RowStats = RowStats(field_names)
         for entity in music_entities:
-            row, values_by_fields = DataConverter._convert_parsed_mix(entity, fields_obj, col_indices_by_sheet_name)
+            row, values_by_fields = DataConverter._convert_parsed_entity(entity, fields_obj, col_indices_by_sheet_name)
             DataConverter.update_row_stats(values_by_fields)
             sheet_list_of_rows.append(row)
         cls.row_stats.print_stats()
         return sheet_list_of_rows
 
     @classmethod
-    def _convert_parsed_mix(cls, entity: MusicEntity,
-                            fields_obj: Fields,
-                            col_indices_by_sheet_name: Dict[str, int]) -> p.ParsedListenToMixRow:
+    def _convert_parsed_entity(cls, entity: MusicEntity,
+                               fields_obj: Fields,
+                               col_indices_by_sheet_name: Dict[str, int]) -> p.ParsedMusicEntity:
         no_of_fields = len(fields_obj.fields)
         row: List[str] = [""] * no_of_fields
         values_by_fields: Dict[str, str] = {}
         for field in fields_obj.fields:
-            col_idx = col_indices_by_sheet_name[field.mix_field.name_in_sheet]
+            col_idx = col_indices_by_sheet_name[field.entity_field.name_in_sheet]
             obj_value = Fields.safe_get_attr(entity.data, field.name)
             row[col_idx] = obj_value
             values_by_fields[field.name] = obj_value
@@ -262,18 +262,18 @@ class DataConverter:
     @classmethod
     def convert_rows_to_data(cls, rows: List[List[str]],
                              fields_obj: Fields,
-                             col_indices_by_sheet_name: Dict[str, int]) -> List[p.ParsedListenToMixRow]:
+                             col_indices_by_sheet_name: Dict[str, int]) -> List[p.ParsedMusicEntity]:
         res = []
         for row in rows:
             matches = {}
             for f in fields_obj.fields:
-                f_sheet_name = f.mix_field.name_in_sheet
+                f_sheet_name = f.entity_field.name_in_sheet
                 col_idx = col_indices_by_sheet_name[f_sheet_name]
                 # GSheet returns shorter rows for empty cells
                 if len(row) - 1 < col_idx:
                     matches[f.name] = ""
                 else:
                     matches[f.name] = row[col_idx]
-            obj = fields_obj.create_object_by_matches(obj_type=p.ParsedListenToMixRow, matches=matches)
+            obj = fields_obj.create_object_by_matches(obj_type=p.ParsedMusicEntity, matches=matches)
             res.append(obj)
         return res

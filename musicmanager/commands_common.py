@@ -52,7 +52,7 @@ class GSheetArguments:
 
 
 class CommandType(Enum):
-    ADD_NEW_MIXES_TO_LISTEN = ("add_new_mixes_to_listen", "add-new-mixes-to-listen", False)
+    ADD_NEW_MUSIC_ENTITY = ("add_new_music_entity", "add-new-music-entity", False)
 
     def __init__(self, value, output_dir_name, session_based: bool, session_link_name: str = ""):
         self.real_name = value

@@ -10,7 +10,7 @@ from pythoncommons.logging_setup import SimpleLoggingSetupConfig, SimpleLoggingS
 from pythoncommons.os_utils import OsUtils
 from pythoncommons.project_utils import ProjectUtils, ProjectRootDeterminationStrategy
 
-from musicmanager.commands.addnewmixestolisten.add_new_mixes_to_listen_cmd import AddNewMixesToListenCommand
+from musicmanager.commands.addnewentitiestosheet.add_new_music_entity_cmd import AddNewMusicEntityCommand
 from musicmanager.commands_common import GSheetArguments
 from musicmanager.common import MusicManagerEnvVar
 from musicmanager.constants import PROJECT_NAME
@@ -35,7 +35,7 @@ class ArgParser:
             required=True,
             dest="command",
         )
-        AddNewMixesToListenCommand.create_parser(subparsers)
+        AddNewMusicEntityCommand.create_parser(subparsers)
 
         parser.add_argument('-v', '--verbose',
                             action='store_true',
