@@ -1,4 +1,5 @@
 import logging
+import sys
 from dataclasses import make_dataclass
 from typing import Dict
 
@@ -8,11 +9,11 @@ from pythoncommons.file_parser.parser_config_reader import ParserConfigReader
 from musicmanager.commands.addnewmixestolisten.config import ParserConfig
 
 LOG = logging.getLogger(__name__)
+module = sys.modules[__name__]
+ParsedListenToMixRow = None
 
 
 class NewMixesToListenInputFileParser:
-    ParsedListenToMixRow = None
-
     def __init__(self, config_reader: ParserConfigReader):
         self._validate(config_reader)
         diagnostic_config = DiagnosticConfig(print_date_lines=True,
@@ -22,7 +23,7 @@ class NewMixesToListenInputFileParser:
         self.extended_config: ParserConfig = config_reader.extended_config
         self.extended_config.fields.post_init(self.extended_config.parser_settings.fields)
         LOG.info("Initialized parser config")
-        NewMixesToListenInputFileParser.ParsedListenToMixRow = make_dataclass('ParsedListenToMixRow', self.extended_config.fields.get_list_of_dataclass_fields())
+        module.ParsedListenToMixRow = make_dataclass('ParsedListenToMixRow', self.extended_config.fields.get_list_of_dataclass_fields())
 
         self.generic_line_by_line_parser = GenericLineByLineParser(
             self.generic_parser_config,
@@ -41,8 +42,8 @@ class NewMixesToListenInputFileParser:
 
     def parse(self, file: str):
         return self.generic_line_by_line_parser.parse(file,
-                                                      parsed_object_dataclass=NewMixesToListenInputFileParser.ParsedListenToMixRow,
+                                                      parsed_object_dataclass=ParsedListenToMixRow,
                                                       line_to_obj_parser_func=self._create_parsed_mix_from_match_groups)
 
     def _create_parsed_mix_from_match_groups(self, matches: Dict[str, str]):
-        return self.extended_config.fields.create_object_by_matches(obj_type=NewMixesToListenInputFileParser.ParsedListenToMixRow, matches=matches)
+        return self.extended_config.fields.create_object_by_matches(obj_type=ParsedListenToMixRow, matches=matches)

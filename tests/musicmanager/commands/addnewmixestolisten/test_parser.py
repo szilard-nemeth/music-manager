@@ -122,7 +122,9 @@ class NewMixesToListenInputFileParserTest(unittest.TestCase):
                                                                               obj_data_class=ParserConfig,
                                                                               config_type=GenericLineParserConfig)
         parser = NewMixesToListenInputFileParser(config_reader)
-        self.parsed_obj_dataclass = NewMixesToListenInputFileParser.ParsedListenToMixRow
+
+        from musicmanager.commands.addnewmixestolisten.parser import ParsedListenToMixRow
+        self.parsed_obj_dataclass = ParsedListenToMixRow
         self.all_field_names: Set[str] = set(parser.extended_config.fields.dataclass_fields.keys())
         self.parsed_objs = parser.parse(TEXTFILE)
 

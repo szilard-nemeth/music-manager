@@ -12,6 +12,7 @@ from pythoncommons.result_printer import BasicResultPrinter
 
 from musicmanager.commands.addnewmixestolisten.config import ParserConfig, Fields, Field
 from musicmanager.commands.addnewmixestolisten.parser import NewMixesToListenInputFileParser
+import musicmanager.commands.addnewmixestolisten.parser as p
 from musicmanager.commands_common import CommandType, CommandAbs
 from musicmanager.common import Duration
 from musicmanager.constants import LocalDirs
@@ -138,6 +139,7 @@ class AddNewMixesToListenCommand(CommandAbs):
         LOG.info("Read project config: %s", pformat(config_reader.config))
         parser = NewMixesToListenInputFileParser(config_reader)
         parsed_objs = parser.parse(self.config.src_file)
+
         self.header = list(parser.extended_config.fields.by_sheet_name.keys())
         if self.config.operation_mode == OperationMode.GSHEET:
             col_indices_by_fields: Dict[str, int] = self.config.gsheet_wrapper.get_column_indices_of_header()
@@ -190,7 +192,7 @@ class AddNewMixesToListenCommand(CommandAbs):
         pass
 
     @staticmethod
-    def filter_duplicates(objs_from_sheet: List[NewMixesToListenInputFileParser.ParsedListenToMixRow],
+    def filter_duplicates(objs_from_sheet: List[p.ParsedListenToMixRow],
                           parsed_objs):
         existing_titles = set([obj.title for obj in objs_from_sheet])
         existing_links = set([obj.link_1 for obj in objs_from_sheet])
@@ -242,7 +244,7 @@ class DataConverter:
     @classmethod
     def _convert_parsed_mix(cls, entity: MusicEntity,
                             fields_obj: Fields,
-                            col_indices_by_sheet_name: Dict[str, int]) -> NewMixesToListenInputFileParser.ParsedListenToMixRow:
+                            col_indices_by_sheet_name: Dict[str, int]) -> p.ParsedListenToMixRow:
         no_of_fields = len(fields_obj.fields)
         row: List[str] = [""] * no_of_fields
         values_by_fields: Dict[str, str] = {}
@@ -260,7 +262,7 @@ class DataConverter:
     @classmethod
     def convert_rows_to_data(cls, rows: List[List[str]],
                              fields_obj: Fields,
-                             col_indices_by_sheet_name: Dict[str, int]) -> List[NewMixesToListenInputFileParser.ParsedListenToMixRow]:
+                             col_indices_by_sheet_name: Dict[str, int]) -> List[p.ParsedListenToMixRow]:
         res = []
         for row in rows:
             matches = {}
@@ -272,6 +274,6 @@ class DataConverter:
                     matches[f.name] = ""
                 else:
                     matches[f.name] = row[col_idx]
-            obj = fields_obj.create_object_by_matches(obj_type=NewMixesToListenInputFileParser.ParsedListenToMixRow, matches=matches)
+            obj = fields_obj.create_object_by_matches(obj_type=p.ParsedListenToMixRow, matches=matches)
             res.append(obj)
         return res
