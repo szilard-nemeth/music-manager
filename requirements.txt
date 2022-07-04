@@ -11,3 +11,5 @@ httplib2
 dataclasses-json
 typing-extensions
 youtube-dl
+bs4
+requests

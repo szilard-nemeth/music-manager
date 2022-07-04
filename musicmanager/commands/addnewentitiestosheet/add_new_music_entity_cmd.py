@@ -10,33 +10,17 @@ from pythoncommons.file_utils import FindResultType
 from pythoncommons.project_utils import SimpleProjectUtils
 from pythoncommons.result_printer import BasicResultPrinter
 
-from musicmanager.commands.addnewentitiestosheet.config import ParserConfig, Fields, Field
-from musicmanager.commands.addnewentitiestosheet.parser import MusicEntityInputFileParser
 import musicmanager.commands.addnewentitiestosheet.parser as p
+from musicmanager.commands.addnewentitiestosheet.config import ParserConfig, Fields
+from musicmanager.commands.addnewentitiestosheet.music_entity_creator import MusicEntityCreator, MusicEntity
+from musicmanager.commands.addnewentitiestosheet.parser import MusicEntityInputFileParser
 from musicmanager.commands_common import CommandType, CommandAbs
-from musicmanager.common import Duration
 from musicmanager.constants import LocalDirs
 from musicmanager.statistics import RowStats
-
-from musicmanager.youtube import Youtube
 
 ROWS_TO_FETCH = 3000
 
 LOG = logging.getLogger(__name__)
-
-
-class MusicEntityType(Enum):
-    MIX = "mix"
-    TRACK = "track"
-    UNKNOWN = "unknown"
-
-
-class MusicEntity:
-    def __init__(self, data, duration: Duration, url: str, entity_type: MusicEntityType):
-        self.url = url
-        self.data = data
-        self.duration: Duration = duration
-        self.entity_type = entity_type
 
 
 class OperationMode(Enum):
@@ -154,7 +138,7 @@ class AddNewMusicEntityCommand(CommandAbs):
                                                                  col_indices_by_fields)
             parsed_objs = self.filter_duplicates(objs_from_sheet, parsed_objs)
 
-        music_entities = self._create_music_entities(parsed_objs)
+        music_entities = MusicEntityCreator.create_music_entities(parsed_objs)
         self.data = DataConverter.convert_data_to_rows(music_entities, parser.extended_config.fields, col_indices_by_fields)
 
         if not self.header:
@@ -171,21 +155,6 @@ class AddNewMusicEntityCommand(CommandAbs):
             LOG.info("[DRY-RUN] Would add the following rows to Google Sheets: ")
             LOG.info(self.data)
         LOG.info("Finished adding new music entities")
-
-    @staticmethod
-    def _create_music_entities(parsed_objs):
-        music_entities = []
-        for obj in parsed_objs:
-            duration, url = Youtube.determine_duration_by_urls([obj.link_1, obj.link_2, obj.link_3])
-
-            entity_type = MusicEntityType.UNKNOWN
-            if 0 < duration.minutes <= 12:
-                entity_type = MusicEntityType.TRACK
-            elif duration.minutes > 12:
-                entity_type = MusicEntityType.MIX
-            entity = MusicEntity(obj, duration, url, entity_type)
-            music_entities.append(entity)
-        return music_entities
 
     def update_gsheet(self, parser, col_indices_by_fields):
         # self.config.gsheet_wrapper.write_data_to_new_rows(self.header, self.data, clear_range=False)
