@@ -10,3 +10,4 @@ setuptools~=59.5.0
 httplib2
 dataclasses-json
 typing-extensions
+youtube-dl

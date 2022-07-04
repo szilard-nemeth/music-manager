@@ -1,6 +1,5 @@
 import logging
 import os
-from dataclasses import fields
 from enum import Enum
 from pprint import pformat
 from typing import List, Dict
@@ -14,12 +13,29 @@ from pythoncommons.result_printer import BasicResultPrinter
 from musicmanager.commands.addnewmixestolisten.config import ParserConfig, Fields, Field
 from musicmanager.commands.addnewmixestolisten.parser import NewMixesToListenInputFileParser
 from musicmanager.commands_common import CommandType, CommandAbs
+from musicmanager.common import Duration
 from musicmanager.constants import LocalDirs
 from musicmanager.statistics import RowStats
+
+from musicmanager.youtube import Youtube
 
 ROWS_TO_FETCH = 3000
 
 LOG = logging.getLogger(__name__)
+
+
+class MusicEntityType(Enum):
+    MIX = "mix"
+    TRACK = "track"
+    UNKNOWN = "unknown"
+
+
+class MusicEntity:
+    def __init__(self, data, duration: Duration, url: str, entity_type: MusicEntityType):
+        self.url = url
+        self.data = data
+        self.duration: Duration = duration
+        self.entity_type = entity_type
 
 
 class OperationMode(Enum):
@@ -135,7 +151,9 @@ class AddNewMixesToListenCommand(CommandAbs):
             objs_from_sheet = DataConverter.convert_rows_to_data(rows, parser.extended_config.fields,
                                                                  col_indices_by_fields)
             parsed_objs = self.filter_duplicates(objs_from_sheet, parsed_objs)
-        self.data = DataConverter.convert_data_to_rows(parsed_objs, parser.extended_config.fields, col_indices_by_fields)
+
+        music_entities = self._create_music_entities(parsed_objs)
+        self.data = DataConverter.convert_data_to_rows(music_entities, parser.extended_config.fields, col_indices_by_fields)
 
         if not self.header:
             raise ValueError("Header is empty")
@@ -151,6 +169,21 @@ class AddNewMixesToListenCommand(CommandAbs):
             LOG.info("[DRY-RUN] Would add the following rows to Google Sheets: ")
             LOG.info(self.data)
         LOG.info("Finished adding new mixes to listen")
+
+    @staticmethod
+    def _create_music_entities(parsed_objs):
+        music_entities = []
+        for obj in parsed_objs:
+            duration, url = Youtube.determine_duration_by_urls([obj.link_1, obj.link_2, obj.link_3])
+
+            entity_type = MusicEntityType.UNKNOWN
+            if 0 < duration.minutes <= 12:
+                entity_type = MusicEntityType.TRACK
+            elif duration.minutes > 12:
+                entity_type = MusicEntityType.MIX
+            entity = MusicEntity(obj, duration, url, entity_type)
+            music_entities.append(entity)
+        return music_entities
 
     def update_gsheet(self, parser, col_indices_by_fields):
         # self.config.gsheet_wrapper.write_data_to_new_rows(self.header, self.data, clear_range=False)
@@ -193,21 +226,21 @@ class DataConverter:
     row_stats = None
 
     @classmethod
-    def convert_data_to_rows(cls, parsed_mixes: List[NewMixesToListenInputFileParser.ParsedListenToMixRow],
+    def convert_data_to_rows(cls, music_entities: List[MusicEntity],
                              fields_obj: Fields,
                              col_indices_by_sheet_name: Dict[str, int]) -> List[List[str]]:
         sheet_list_of_rows: List[List[str]] = []
         field_names = [field.name for field in fields_obj.fields]
         cls.row_stats: RowStats = RowStats(field_names)
-        for parsed_mix in parsed_mixes:
-            row, values_by_fields = DataConverter._convert_parsed_mix(parsed_mix, fields_obj, col_indices_by_sheet_name)
+        for entity in music_entities:
+            row, values_by_fields = DataConverter._convert_parsed_mix(entity, fields_obj, col_indices_by_sheet_name)
             DataConverter.update_row_stats(values_by_fields)
             sheet_list_of_rows.append(row)
         cls.row_stats.print_stats()
         return sheet_list_of_rows
 
     @classmethod
-    def _convert_parsed_mix(cls, parsed_mix: NewMixesToListenInputFileParser.ParsedListenToMixRow,
+    def _convert_parsed_mix(cls, entity: MusicEntity,
                             fields_obj: Fields,
                             col_indices_by_sheet_name: Dict[str, int]) -> NewMixesToListenInputFileParser.ParsedListenToMixRow:
         no_of_fields = len(fields_obj.fields)
@@ -215,7 +248,7 @@ class DataConverter:
         values_by_fields: Dict[str, str] = {}
         for field in fields_obj.fields:
             col_idx = col_indices_by_sheet_name[field.mix_field.name_in_sheet]
-            obj_value = Fields.safe_get_attr(parsed_mix, field.name)
+            obj_value = Fields.safe_get_attr(entity.data, field.name)
             row[col_idx] = obj_value
             values_by_fields[field.name] = obj_value
         return row, values_by_fields
