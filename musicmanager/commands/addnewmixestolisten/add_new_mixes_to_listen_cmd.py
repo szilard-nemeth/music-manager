@@ -17,6 +17,8 @@ from musicmanager.commands_common import CommandType, CommandAbs
 from musicmanager.constants import LocalDirs
 from musicmanager.statistics import RowStats
 
+ROWS_TO_FETCH = 3000
+
 LOG = logging.getLogger(__name__)
 
 
@@ -30,6 +32,7 @@ class AddNewMixesToListenCommandConfig:
         self.gsheet_wrapper = None
         self._validate(args, parser)
         self.src_file = args.src_file
+        self.duplicate_detection = args.duplicate_detection
         self.headers = None
 
     def _validate(self, args, parser):
@@ -60,6 +63,7 @@ class AddNewMixesToListenCommandConfig:
         )
         self.parser_conf_json = os.path.join(parser_config_dir, "parserconfig.json")
         if not hasattr(self, "src_file"):
+            # TODO hardcoded filename
             self.src_file = os.path.join(input_files_dir, "mixes.txt")
 
     @staticmethod
@@ -99,6 +103,11 @@ class AddNewMixesToListenCommand(CommandAbs):
         )
         parser.add_argument('--src_file', type=str)
         parser.set_defaults(func=AddNewMixesToListenCommand.execute)
+        parser.add_argument('--duplicate-detection',
+                            action='store_true',
+                            default=True,
+                            help='Whether to detect and not add duplicate items',
+                            required=False)
 
     @staticmethod
     def execute(args, parser=None):
@@ -115,10 +124,18 @@ class AddNewMixesToListenCommand(CommandAbs):
         parsed_objs = parser.parse(self.config.src_file)
         self.header = list(parser.extended_config.fields.by_sheet_name.keys())
         if self.config.operation_mode == OperationMode.GSHEET:
-            col_indices_by_of_fields = self.config.gsheet_wrapper.get_column_indices_of_header(self.header)
+            col_indices_by_fields: Dict[str, int] = self.config.gsheet_wrapper.get_column_indices_of_header()
         else:
-            col_indices_by_of_fields = {col_name: idx for idx, col_name in enumerate(self.header)}
-        self.data = DataConverter.convert_data_to_rows(parsed_objs, parser.extended_config.fields, col_indices_by_of_fields)
+            col_indices_by_fields: Dict[str, int] = {col_name: idx for idx, col_name in enumerate(self.header)}
+
+        if self.config.operation_mode == OperationMode.GSHEET and self.config.duplicate_detection:
+            LOG.info("Trying to detect duplicates...")
+            rows = self.config.gsheet_wrapper.read_data_by_header(ROWS_TO_FETCH, skip_header_row=True)
+            LOG.debug("Fetched data from sheet: %s", rows)
+            objs_from_sheet = DataConverter.convert_rows_to_data(rows, parser.extended_config.fields,
+                                                                 col_indices_by_fields)
+            parsed_objs = self.filter_duplicates(objs_from_sheet, parsed_objs)
+        self.data = DataConverter.convert_data_to_rows(parsed_objs, parser.extended_config.fields, col_indices_by_fields)
 
         if not self.header:
             raise ValueError("Header is empty")
@@ -129,14 +146,45 @@ class AddNewMixesToListenCommand(CommandAbs):
         BasicResultPrinter.print_table(self.data, self.header)
         if self.config.operation_mode == OperationMode.GSHEET:
             LOG.info("Updating Google sheet with data...")
-            self.update_gsheet()
+            self.update_gsheet(parser, col_indices_by_fields)
         elif self.config.operation_mode == OperationMode.DRY_RUN:
             LOG.info("[DRY-RUN] Would add the following rows to Google Sheets: ")
             LOG.info(self.data)
         LOG.info("Finished adding new mixes to listen")
 
-    def update_gsheet(self):
-        self.config.gsheet_wrapper.write_data_to_new_rows(self.header, self.data, clear_range=False)
+    def update_gsheet(self, parser, col_indices_by_fields):
+        # self.config.gsheet_wrapper.write_data_to_new_rows(self.header, self.data, clear_range=False)
+        pass
+
+    @staticmethod
+    def filter_duplicates(objs_from_sheet: List[NewMixesToListenInputFileParser.ParsedListenToMixRow],
+                          parsed_objs):
+        existing_titles = set([obj.title for obj in objs_from_sheet])
+        existing_links = set([obj.link_1 for obj in objs_from_sheet])
+        existing_links.update([obj.link_2 for obj in objs_from_sheet])
+        existing_links.update([obj.link_3 for obj in objs_from_sheet])
+
+        filtered = []
+        num_dupes_by_title = 0
+        num_dupes_by_link = 0
+        for obj in parsed_objs:
+            if obj.title in existing_titles:
+                LOG.debug("Detected duplicate by title: '%s'", obj.title)
+                num_dupes_by_title += 1
+            elif obj.link_1 in existing_links:
+                num_dupes_by_link += 1
+                LOG.debug("Detected duplicate by link1: '%s'", obj.link_1)
+            elif obj.link_2 in existing_links:
+                num_dupes_by_link += 1
+                LOG.debug("Detected duplicate by link2: '%s'", obj.link_2)
+            elif obj.link_3 in existing_links:
+                num_dupes_by_link += 1
+                LOG.debug("Detected duplicate by link3: '%s'", obj.link_3)
+            else:
+                filtered.append(obj)
+
+        LOG.info("Found %d duplicates by title and %d duplicates by link", num_dupes_by_title, num_dupes_by_link)
+        return filtered
 
 
 class DataConverter:
@@ -175,3 +223,22 @@ class DataConverter:
     @classmethod
     def update_row_stats(cls, values_by_fields):
         cls.row_stats.update(values_by_fields)
+
+    @classmethod
+    def convert_rows_to_data(cls, rows: List[List[str]],
+                             fields_obj: Fields,
+                             col_indices_by_sheet_name: Dict[str, int]) -> List[NewMixesToListenInputFileParser.ParsedListenToMixRow]:
+        res = []
+        for row in rows:
+            matches = {}
+            for f in fields_obj.fields:
+                f_sheet_name = f.mix_field.name_in_sheet
+                col_idx = col_indices_by_sheet_name[f_sheet_name]
+                # GSheet returns shorter rows for empty cells
+                if len(row) - 1 < col_idx:
+                    matches[f.name] = ""
+                else:
+                    matches[f.name] = row[col_idx]
+            obj = fields_obj.create_object_by_matches(obj_type=NewMixesToListenInputFileParser.ParsedListenToMixRow, matches=matches)
+            res.append(obj)
+        return res

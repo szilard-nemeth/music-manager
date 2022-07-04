@@ -76,10 +76,10 @@ class Fields:
         return getattr(parsed_obj, safe_attr_name)
 
     def _convert_matches_to_field_dict(self, matches):
-        self._normalize_keys(matches)
+        Fields._normalize_keys(matches)
         ret = {}
         for k, v in matches.items():
-            key = self._convert_field_to_field_key(k)
+            key = Fields._convert_field_to_field_key(k)
             field = self.by_short_name[key]
             ret[field] = v
         return ret
