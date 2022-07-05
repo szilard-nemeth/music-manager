@@ -55,7 +55,7 @@ class Facebook(ContentProviderAbs):
         return Duration.unknown(), url
 
     def emit_links(self, url) -> Set[str]:
-        # TODO Introduce new class that ties together FB link parsing: FacebookLinkParser?
+        # TODO Introduce new class that ties together the emitting logic: private post, private group post, public post, public group post
         LOG.info("Emitting links from provider '%s'", self)
         resp = requests.get(url, headers=Facebook.HEADERS)
         soup = create_bs(resp.text)
@@ -92,7 +92,7 @@ class Facebook(ContentProviderAbs):
                 links = self._find_links_in_html_comments(url, soup)
                 if not links:
                     LOG.info("Falling back to Javascript-rendered webpage scraping for URL '%s'", url)
-                    links = JSRenderer.render_url_with_javascript(url)
+                    links = FacebookLinkParser.find_links_with_js_rendering(url)
                 return links
             else:
                 # TODO implement?
@@ -268,8 +268,9 @@ class FacebookLinkParser:
         LOG.debug("[orig: %s] Found links: %s", url, found_links)
         return found_links
 
-    def _find_links_with_js_rendering(self, url):
-        resp = Facebook._render_url_with_javascript(url)
+    @staticmethod
+    def find_links_with_js_rendering(url):
+        resp = JSRenderer.render_url_with_javascript(url)
         links = resp.html.links
         filtered_links = FacebookLinkParser.filter_facebook_redirect_links(links)
         LOG.debug("[orig: %s] Found links on JS rendered page: %s", url, filtered_links)
