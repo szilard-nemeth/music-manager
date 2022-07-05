@@ -6,7 +6,6 @@ from typing import Tuple, Set
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 
 import requests
-from requests import Response
 from selenium import webdriver
 from selenium.common import ElementNotVisibleException, ElementNotSelectableException, NoSuchElementException, \
     TimeoutException
@@ -17,14 +16,13 @@ from selenium.webdriver.support.wait import WebDriverWait
 from string_utils import auto_str
 
 from musicmanager.common import Duration
-from musicmanager.contentprovider.common import ContentProviderAbs
+from musicmanager.contentprovider.common import ContentProviderAbs, JSRenderer
 
 BS4_HTML_PARSER = "html.parser"
 FACEBOOK_URL_FRAGMENT1 = "facebook.com"
 FACEBOOK_REDIRECT_LINK = "https://l.facebook.com/l.php"
 LOG = logging.getLogger(__name__)
 from bs4 import BeautifulSoup, Comment
-from requests_html import HTMLSession
 
 
 def create_bs(html):
@@ -68,7 +66,7 @@ class Facebook(ContentProviderAbs):
         private_group_soup = None
         if all([not private_post, not private_group_post]):
             # Try to read page with JS
-            resp = Facebook._render_url_with_javascript(url)
+            resp = JSRenderer.render_url_with_javascript(url)
             soup = create_bs(resp.html.html)
             private_group_post = self._find_private_fb_group_div(soup)
             if not private_group_post:
@@ -94,7 +92,7 @@ class Facebook(ContentProviderAbs):
                 links = self._find_links_in_html_comments(url, soup)
                 if not links:
                     LOG.info("Falling back to Javascript-rendered webpage scraping for URL '%s'", url)
-                    links = FacebookLinkParser._find_links_with_js_rendering(url)
+                    links = JSRenderer.render_url_with_javascript(url)
                 return links
             else:
                 # TODO implement?
@@ -107,13 +105,6 @@ class Facebook(ContentProviderAbs):
     @staticmethod
     def _find_private_fb_group_div(soup):
         return soup.find_all("div", string="Private group")
-
-    @staticmethod
-    def _render_url_with_javascript(url):
-        session = HTMLSession()
-        resp: Response = session.get(url)
-        resp.html.render()
-        return resp
 
     @staticmethod
     def string_escape(s, encoding='utf-8'):
@@ -225,7 +216,7 @@ class FacebookLinkParser:
         return links
 
     @staticmethod
-    def filter_links(links: List[str], urls_to_match: List[str], remove_fbclid=True):
+    def filter_links(links: Iterable[str], urls_to_match: List[str], remove_fbclid=True):
         filtered_links = set()
         for link in links:
             for url_to_match in urls_to_match:
@@ -268,11 +259,11 @@ class FacebookLinkParser:
             comment_soup = create_bs(comment)
             divs = comment_soup.find_all('div', attrs={'class': 'userContentWrapper'})
             for div in divs:
-                links = div.findAll('a')
-                orig_links = [a['href'] for a in links]
+                anchors = div.findAll('a')
+                orig_links = [a['href'] for a in anchors]
                 fb_redirect_links = FacebookLinkParser.filter_facebook_redirect_links(orig_links)
                 for redir_link in fb_redirect_links:
-                    unescaped_link = Facebook._get_final_link_from_fb_redirect_link(redir_link, url)
+                    unescaped_link = FacebookLinkParser._get_final_link_from_fb_redirect_link(redir_link, url)
                     found_links.add(unescaped_link)
         LOG.debug("[orig: %s] Found links: %s", url, found_links)
         return found_links
