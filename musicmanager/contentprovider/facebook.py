@@ -21,7 +21,6 @@ from musicmanager.common import Duration
 from musicmanager.contentprovider.common import ContentProviderAbs
 
 BS4_HTML_PARSER = "html.parser"
-
 FACEBOOK_URL_FRAGMENT1 = "facebook.com"
 FACEBOOK_REDIRECT_LINK = "https://l.facebook.com/l.php"
 LOG = logging.getLogger(__name__)
@@ -29,8 +28,8 @@ from bs4 import BeautifulSoup, Comment
 from requests_html import HTMLSession
 
 
-def create_bs(url):
-    return BeautifulSoup(url, features=BS4_HTML_PARSER)
+def create_bs(html):
+    return BeautifulSoup(html, features=BS4_HTML_PARSER)
 
 
 @auto_str
@@ -65,15 +64,9 @@ class Facebook(ContentProviderAbs):
 
         private_post = soup.find_all("div", string="You must log in to continue.")
         if private_post:
-            # Private post content
+            # Normal private FB post content
             links = self.fb_selenium.load_links_from_private_content(url)
-
-            filtered_links = set()
-            for link in links:
-                for url_to_match in self.urls_to_match:
-                    if url_to_match in link:
-                        filtered_links.add(link)
-                        break
+            filtered_links = self._filter_links(links)
             return filtered_links
         else:
             data = soup.findAll('div', attrs={'class': 'userContentWrapper'})
@@ -81,7 +74,19 @@ class Facebook(ContentProviderAbs):
                 links = self._find_links_in_html_comments(url, soup)
                 if not links:
                     links = self._parse_page_with_javascript(url)
-            return links
+                return links
+            else:
+                # TODO implement?
+                pass
+
+    def _filter_links(self, links):
+        filtered_links = set()
+        for link in links:
+            for url_to_match in self.urls_to_match:
+                if url_to_match in link:
+                    filtered_links.add(link)
+                    break
+        return filtered_links
 
     def _parse_page_with_javascript(self, url):
         LOG.info("Falling back to Javascript-rendered webpage scraping for URL '%s'", url)
@@ -155,77 +160,92 @@ class Facebook(ContentProviderAbs):
 
 
 class FacebookSelenium:
+    CHROME_OPT_SELENIUM_PROFILE = "user-data-dir=selenium"
+    COOKIES_FILE = "cookies.pkl"
     FACEBOOK_COM = 'https://www.facebook.com/'
+
     FEELING_BUTTON_TEXT = "Feeling/activity"
+    FEELING_BUTTON_XPATH = '//span[text()="' + FEELING_BUTTON_TEXT + '"]'
+
     COOKIE_BUTTON_TEXT = "Allow essential and optional cookies"
-    BS4_HTML_PARSER = "html.parser"
+    COOKIE_ACCEPT_BUTTON_XPATH = '//button[text()="' + COOKIE_BUTTON_TEXT + '"]'
 
     def __init__(self, config):
         self.config = config
+        self.chrome_options = None
+        self.driver = None
 
     def load_links_from_private_content(self, url):
-        LOG.info("Loading private Facebook content...")
-        chrome_options = Options()
-        chrome_options.add_argument("user-data-dir=selenium")
-        driver = webdriver.Chrome(chrome_options=chrome_options)
+        LOG.info("Loading private Facebook post content...")
+        self._init_webdriver()
+        self.driver.get(self.FACEBOOK_COM)
 
-        driver.get(self.FACEBOOK_COM)
-        loaded = self._wait_for_fb_page_load(driver, timeout=5, throw_exception=False)
+        loaded = self._wait_for_fb_page_load(timeout=5, throw_exception=False)
         if not loaded:
-            self._do_initial_login(driver)
+            self._do_initial_login()
+        return self._find_links_on_page(url)
 
-        driver.get(url)
-        html = driver.page_source
+    def _init_webdriver(self):
+        if not self.chrome_options:
+            self.chrome_options = Options()
+            self.chrome_options.add_argument(self.CHROME_OPT_SELENIUM_PROFILE)
+        if not self.driver:
+            self.driver = webdriver.Chrome(chrome_options=self.chrome_options)
+
+    def _find_links_on_page(self, url):
+        self.driver.get(url)
+        html = self.driver.page_source
         soup = create_bs(html)
         links = soup.findAll("a")
         orig_links = [a['href'] for a in links]
+        orig_links = set(orig_links)
         print("links: " + str(orig_links))
-        return set(orig_links)
+        return orig_links
 
-    def _wait_for_fb_page_load(self, driver, timeout, throw_exception=False):
+    def _wait_for_fb_page_load(self, timeout, throw_exception=False):
         try:
-            wait = WebDriverWait(driver, timeout=timeout, poll_frequency=4,
+            wait = WebDriverWait(self.driver, timeout=timeout, poll_frequency=4,
                                  ignored_exceptions=[NoSuchElementException, ElementNotVisibleException,
                                                      ElementNotSelectableException])
-            feeling_button = wait.until(expected_conditions.element_to_be_clickable(
-                (By.XPATH, '//span[text()="' + self.FEELING_BUTTON_TEXT + '"]')
-            ))
-            return feeling_button
+            success = wait.until(expected_conditions.element_to_be_clickable((By.XPATH, self.FEELING_BUTTON_XPATH)))
+            return success
         except TimeoutException as e:
             if throw_exception:
                 raise e
         return None
 
-    def _do_initial_login(self, driver):
-        driver.get(self.FACEBOOK_COM)
+    def _do_initial_login(self):
+        self.driver.get(self.FACEBOOK_COM)
 
         try:
-            cookie_accept_button = driver.find_element(By.XPATH, '//button[text()="' + self.COOKIE_BUTTON_TEXT + '"]')
+            cookie_accept_button = self._find_cookie_accept_button()
             cookie_accept_button.click()
         except NoSuchElementException:
             logging.exception("An exception was thrown!")
 
-        username_input = driver.find_element(By.ID, 'email')
+        username_input = self.driver.find_element(By.ID, 'email')
         username_input.send_keys(self.config.fb_username)
-        passwd_input = driver.find_element(By.ID, 'pass')
+        passwd_input = self.driver.find_element(By.ID, 'pass')
         passwd_input.send_keys(self.config.fb_password)
-        login_button = driver.find_element(By.NAME, 'login')
+        login_button = self.driver.find_element(By.NAME, 'login')
         login_button.click()
 
-        self._wait_for_fb_page_load(driver, timeout=150, throw_exception=True)
+        # Leave some time for manual 2FA authentication
+        self._wait_for_fb_page_load(timeout=150, throw_exception=True)
+
+    def _find_cookie_accept_button(self):
+        return self.driver.find_element(By.XPATH, self.COOKIE_ACCEPT_BUTTON_XPATH)
 
     @staticmethod
     def _save_cookies(driver):
-        pickle.dump(driver.get_cookies(), open("cookies.pkl", "wb"))
+        pickle.dump(driver.get_cookies(), open(FacebookSelenium.COOKIES_FILE, "wb"))
 
     @staticmethod
     def _load_cookies(driver):
         try:
-            cookies = pickle.load(open("cookies.pkl", "rb"))
+            cookies = pickle.load(open(FacebookSelenium.COOKIES_FILE, "rb"))
         except FileNotFoundError:
             print("Failed to load cookies from cookies.pkl")
             return
         for cookie in cookies:
             driver.add_cookie(cookie)
-
-
