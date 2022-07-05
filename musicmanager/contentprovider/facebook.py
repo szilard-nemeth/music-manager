@@ -58,14 +58,36 @@ class Facebook(ContentProviderAbs):
         return Duration.unknown(), url
 
     def emit_links(self, url) -> Set[str]:
+        # TODO Introduce new class that ties together FB link parsing: FacebookLinkParser?
         LOG.info("Emitting links from provider '%s'", self)
         resp = requests.get(url, headers=Facebook.HEADERS)
         soup = create_bs(resp.text)
 
-        private_post = soup.find_all("div", string="You must log in to continue.")
+        private_post = self._find_private_fb_post_div(soup)
+        private_group_post = self._find_private_fb_group_div(soup)
+
+        private_group_soup = None
+        if all([not private_post, not private_group_post]):
+            # Try to read page with JS
+            resp = Facebook._render_url_with_javascript(url)
+            soup = create_bs(resp.html.html)
+            private_group_post = self._find_private_fb_group_div(soup)
+            if not private_group_post:
+                # Finally, try with Selenium
+                private_group_soup = self.fb_selenium.load_url_as_soup(url)
+                private_group_post = self._find_private_fb_group_div(private_group_soup)
+
         if private_post:
-            # Normal private FB post content
+            # Private FB post content
             links = self.fb_selenium.load_links_from_private_content(url)
+            filtered_links = self._filter_links(links)
+            return filtered_links
+        elif private_group_post:
+            # Private FB group content
+            if private_group_soup:
+                links = self.fb_selenium.load_links_from_private_content_soup(private_group_soup)
+            else:
+                links = self.fb_selenium.load_links_from_private_content(url)
             filtered_links = self._filter_links(links)
             return filtered_links
         else:
@@ -73,11 +95,20 @@ class Facebook(ContentProviderAbs):
             if not data:
                 links = self._find_links_in_html_comments(url, soup)
                 if not links:
-                    links = self._parse_page_with_javascript(url)
+                    LOG.info("Falling back to Javascript-rendered webpage scraping for URL '%s'", url)
+                    links = self._find_links_with_js_rendering(url)
                 return links
             else:
                 # TODO implement?
                 pass
+
+    @staticmethod
+    def _find_private_fb_post_div(soup):
+        return soup.find_all("div", string="You must log in to continue.")
+
+    @staticmethod
+    def _find_private_fb_group_div(soup):
+        return soup.find_all("div", string="Private group")
 
     def _filter_links(self, links):
         filtered_links = set()
@@ -88,20 +119,24 @@ class Facebook(ContentProviderAbs):
                     break
         return filtered_links
 
-    def _parse_page_with_javascript(self, url):
-        LOG.info("Falling back to Javascript-rendered webpage scraping for URL '%s'", url)
-        session = HTMLSession()
-        r: Response = session.get(url)
-        r.html.render()
-        links = r.html.links
+    def _find_links_with_js_rendering(self, url):
+        resp = self._render_url_with_javascript(url)
+        links = resp.html.links
         filtered_links = self._filter_facebook_redirect_links(links)
-        LOG.debug("[orig: %s] Found links on rendered page: %s", url, filtered_links)
+        LOG.debug("[orig: %s] Found links on JS rendered page: %s", url, filtered_links)
 
         final_links = set()
         for link in filtered_links:
             unescaped_link = Facebook._get_final_link_from_fb_redirect_link(link, url)
             final_links.add(unescaped_link)
         return final_links
+
+    @staticmethod
+    def _render_url_with_javascript(url):
+        session = HTMLSession()
+        resp: Response = session.get(url)
+        resp.html.render()
+        return resp
 
     @staticmethod
     def _find_links_in_html_comments(url, soup) -> Set[str]:
@@ -177,13 +212,22 @@ class FacebookSelenium:
 
     def load_links_from_private_content(self, url):
         LOG.info("Loading private Facebook post content...")
+        soup = self.load_url_as_soup(url)
+        return self._find_links_in_soup(soup)
+
+    def load_links_from_private_content_soup(self, soup):
+        LOG.info("Loading private Facebook post content...")
+        return self._find_links_in_soup(soup)
+
+    def load_url_as_soup(self, url) -> BeautifulSoup:
         self._init_webdriver()
         self.driver.get(self.FACEBOOK_COM)
-
         loaded = self._wait_for_fb_page_load(timeout=5, throw_exception=False)
         if not loaded:
             self._do_initial_login()
-        return self._find_links_on_page(url)
+        self.driver.get(url)
+        html = self.driver.page_source
+        return create_bs(html)
 
     def _init_webdriver(self):
         if not self.chrome_options:
@@ -192,10 +236,8 @@ class FacebookSelenium:
         if not self.driver:
             self.driver = webdriver.Chrome(chrome_options=self.chrome_options)
 
-    def _find_links_on_page(self, url):
-        self.driver.get(url)
-        html = self.driver.page_source
-        soup = create_bs(html)
+    @staticmethod
+    def _find_links_in_soup(soup: BeautifulSoup):
         links = soup.findAll("a")
         orig_links = [a['href'] for a in links]
         orig_links = set(orig_links)
