@@ -222,21 +222,22 @@ class FacebookSelenium:
         self.chrome_options = None
         self.driver = None
 
-    def load_links_from_private_content(self, url):
+    def load_links_from_private_content(self, url: str):
         LOG.info("Loading private Facebook post content...")
         soup = self.load_url_as_soup(url)
-        return self._find_links_in_soup(soup)
+        return FacebookLinkParser.find_links_in_soup(soup)
 
-    def load_links_from_private_content_soup(self, soup):
+    @staticmethod
+    def load_links_from_private_content_soup(soup: BeautifulSoup):
         LOG.info("Loading private Facebook post content...")
-        return self._find_links_in_soup(soup)
+        return FacebookLinkParser.find_links_in_soup(soup)
 
     def load_url_as_soup(self, url) -> BeautifulSoup:
         self._init_webdriver()
         self.driver.get(self.FACEBOOK_COM)
         loaded = self._wait_for_fb_page_load(timeout=5, throw_exception=False)
         if not loaded:
-            self._do_initial_login()
+            self._do_initial_facebook_login()
         self.driver.get(url)
         html = self.driver.page_source
         return create_bs(html)
@@ -247,14 +248,6 @@ class FacebookSelenium:
             self.chrome_options.add_argument(self.CHROME_OPT_SELENIUM_PROFILE)
         if not self.driver:
             self.driver = webdriver.Chrome(chrome_options=self.chrome_options)
-
-    @staticmethod
-    def _find_links_in_soup(soup: BeautifulSoup):
-        links = soup.findAll("a")
-        orig_links = [a['href'] for a in links]
-        orig_links = set(orig_links)
-        print("links: " + str(orig_links))
-        return orig_links
 
     def _wait_for_fb_page_load(self, timeout, throw_exception=False):
         try:
@@ -268,7 +261,7 @@ class FacebookSelenium:
                 raise e
         return None
 
-    def _do_initial_login(self):
+    def _do_initial_facebook_login(self):
         self.driver.get(self.FACEBOOK_COM)
 
         try:
@@ -303,3 +296,12 @@ class FacebookSelenium:
             return
         for cookie in cookies:
             driver.add_cookie(cookie)
+
+
+class FacebookLinkParser:
+    @staticmethod
+    def find_links_in_soup(soup: BeautifulSoup):
+        anchors = soup.findAll("a")
+        links = set([a['href'] for a in anchors])
+        LOG.info("Found links: %s", links)
+        return links
