@@ -3,6 +3,7 @@ import re
 from typing import Tuple, Set
 
 import requests
+from string_utils import auto_str
 
 from musicmanager.common import Duration
 from musicmanager.contentprovider.common import ContentProviderAbs
@@ -13,6 +14,7 @@ LOG = logging.getLogger(__name__)
 from bs4 import BeautifulSoup, Comment
 
 
+@auto_str
 class Facebook(ContentProviderAbs):
     def is_media_provider(self):
         return False
@@ -26,6 +28,7 @@ class Facebook(ContentProviderAbs):
         return Duration.unknown(), url
 
     def emit_links(self, url) -> Set[str]:
+        LOG.info("Emitting links from provider '%s'", self)
         resp = requests.get(url)
         soup = BeautifulSoup(resp.text, features="html.parser")
         data = soup.findAll('div', attrs={'class': 'userContentWrapper'})
@@ -47,7 +50,7 @@ class Facebook(ContentProviderAbs):
         found_links = set()
         comments = soup.find_all(text=lambda text: isinstance(text, Comment))
         for comment in comments:
-            comment_soup = BeautifulSoup(comment)
+            comment_soup = BeautifulSoup(comment, features="html.parser")
             divs = comment_soup.find_all('div', attrs={'class': 'userContentWrapper'})
             for div in divs:
                 links = div.findAll('a')
@@ -71,6 +74,7 @@ class Facebook(ContentProviderAbs):
 
     @staticmethod
     def string_escape(s, encoding='utf-8'):
+        # TODO remove?
         return (s.encode('latin1')  # To bytes, required by 'unicode-escape'
                 .decode('unicode-escape')  # Perform the actual octal-escaping decode
                 .encode('latin1')  # 1:1 mapping back to bytes

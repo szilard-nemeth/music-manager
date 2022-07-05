@@ -2,6 +2,8 @@ from abc import ABC, abstractmethod
 from typing import List, Tuple, Any, Set
 
 from musicmanager.common import Duration
+import logging
+LOG = logging.getLogger(__name__)
 
 
 class ContentProviderAbs(ABC):

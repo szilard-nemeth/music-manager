@@ -2,6 +2,8 @@ from datetime import timedelta
 from typing import List, Tuple
 import logging
 import youtube_dl
+from string_utils import auto_str
+
 from musicmanager.common import Duration
 from musicmanager.contentprovider.common import ContentProviderAbs
 
@@ -12,6 +14,7 @@ YOUTUBE_DL = youtube_dl.YoutubeDL({'outtmpl': '%(id)s.%(ext)s'})
 LOG = logging.getLogger(__name__)
 
 
+@auto_str
 class Youtube(ContentProviderAbs):
     def is_media_provider(self):
         return True
@@ -37,7 +40,7 @@ class Youtube(ContentProviderAbs):
         video_info = Youtube._get_youtube_video_info(url)
         duration_seconds = video_info['duration']
         td = timedelta(seconds=duration_seconds)
-        LOG.info("Duration of video '%s': %s", url, td)
+        LOG.info("Determined duration of video '%s': %s", url, td)
         return Duration(duration_seconds)
 
     @staticmethod
