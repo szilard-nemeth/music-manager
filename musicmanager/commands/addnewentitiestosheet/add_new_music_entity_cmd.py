@@ -157,6 +157,7 @@ class AddNewMusicEntityCommand(CommandAbs):
         LOG.info("Finished adding new music entities")
 
     def update_gsheet(self, parser, col_indices_by_fields):
+        # TODO add back later
         # self.config.gsheet_wrapper.write_data_to_new_rows(self.header, self.data, clear_range=False)
         pass
 

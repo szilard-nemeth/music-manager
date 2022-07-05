@@ -63,13 +63,14 @@ class Facebook(ContentProviderAbs):
                     # <script type="text/javascript" nonce="Fb99FNm1">
                     #       document.location.replace("https:\\/\\/youtube.com\\/watch?v=cI6tWuNlwZ4&feature=share");
                     # </script>
-                    LOG.debug(resp.text)
+                    LOG.debug("[orig: %s] Response of href '%s': %s", url, href, resp.text)
                     match = re.search(r"document\.location\.replace\(\"(.*)\"\)", resp.text)
+                    # TODO Error handling for not found group(1)
                     found_group = match.group(1)
                     unescaped_link = found_group.replace("\\/", "/")
                     LOG.debug(unescaped_link)
                     found_links.add(unescaped_link)
-        LOG.debug("[%s] Found links: %s", url, found_links)
+        LOG.debug("[orig: %s] Found links: %s", url, found_links)
         return found_links
 
     @staticmethod

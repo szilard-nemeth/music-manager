@@ -1,7 +1,10 @@
 from enum import Enum
 from typing import List, Tuple, Set, Iterable
 
+from string_utils import auto_str
+
 from musicmanager.common import Duration
+from musicmanager.contentprovider.beatport import Beatport
 from musicmanager.contentprovider.common import ContentProviderAbs
 from musicmanager.contentprovider.facebook import Facebook
 from musicmanager.contentprovider.youtube import Youtube
@@ -15,6 +18,7 @@ class MusicEntityType(Enum):
     UNKNOWN = "unknown"
 
 
+@auto_str
 class MusicEntity:
     def __init__(self, data, duration: Duration, url: str, entity_type: MusicEntityType):
         self.url = url
@@ -29,7 +33,7 @@ class MusicEntity:
 
 
 class MusicEntityCreator:
-    content_providers: List[ContentProviderAbs] = [Youtube(), Facebook()]
+    content_providers: List[ContentProviderAbs] = [Youtube(), Facebook(), Beatport()]
 
     @staticmethod
     def create_music_entities(parsed_objs):
@@ -41,6 +45,7 @@ class MusicEntityCreator:
             for duration_tup in durations:
                 entity_type = MusicEntityCreator._determine_entity_type(duration_tup[0])
                 entity = MusicEntity(obj, duration_tup[0], duration_tup[1], entity_type)
+                LOG.debug("Created music entity: %s", entity)
                 music_entities.append(entity)
         return music_entities
 
@@ -77,5 +82,6 @@ class MusicEntityCreator:
                         all_links.append(provider.determine_duration_by_url(link))
 
             if not link_handled:
+                # TODO Make a CLI option for this whether to store unknown links
                 LOG.error("Found link that none of the providers can handle: %s", link)
         return all_links
