@@ -1,5 +1,5 @@
 from datetime import timedelta
-from typing import List, Tuple
+from typing import List, Tuple, Iterable
 import logging
 import youtube_dl
 from string_utils import auto_str
@@ -7,8 +7,8 @@ from string_utils import auto_str
 from musicmanager.common import Duration
 from musicmanager.contentprovider.common import ContentProviderAbs
 
-YOUTUBE_URL2 = "youtu.be"
 YOUTUBE_URL_1 = "youtube.com"
+YOUTUBE_URL_2 = "youtu.be"
 YOUTUBE_CHANNEL_URL_FRAGMENT = "channel/"
 YOUTUBE_DL = youtube_dl.YoutubeDL({'outtmpl': '%(id)s.%(ext)s'})
 LOG = logging.getLogger(__name__)
@@ -16,11 +16,14 @@ LOG = logging.getLogger(__name__)
 
 @auto_str
 class Youtube(ContentProviderAbs):
+    def url_matchers(self) -> Iterable[str]:
+        return [YOUTUBE_URL_1, YOUTUBE_URL_2]
+
     def is_media_provider(self):
         return True
 
     def can_handle_url(self, url):
-        if YOUTUBE_URL_1 in url or YOUTUBE_URL2 in url:
+        if YOUTUBE_URL_1 in url or YOUTUBE_URL_2 in url:
             return True
         return False
 

@@ -6,20 +6,19 @@ from string_utils import auto_str
 from musicmanager.common import Duration
 from musicmanager.contentprovider.common import ContentProviderAbs
 
-BEATPORT_URL = "beatport.com"
-LOG = logging.getLogger(__name__)
+SOUNDCLOUD_URL = "soundcloud.com"
 
 
 @auto_str
-class Beatport(ContentProviderAbs):
+class SoundCloud(ContentProviderAbs):
     def url_matchers(self) -> Iterable[str]:
-        return [BEATPORT_URL]
+        return [SOUNDCLOUD_URL]
 
     def is_media_provider(self):
         return True
 
     def can_handle_url(self, url):
-        if BEATPORT_URL in url:
+        if SOUNDCLOUD_URL in url:
             return True
         return False
 

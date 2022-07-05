@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import List, Tuple, Any, Set
+from typing import List, Tuple, Any, Set, Iterable
 
 from musicmanager.common import Duration
 import logging
@@ -21,4 +21,8 @@ class ContentProviderAbs(ABC):
 
     @abstractmethod
     def is_media_provider(self):
+        pass
+
+    @abstractmethod
+    def url_matchers(self) -> Iterable[str]:
         pass

@@ -16,6 +16,10 @@ from musicmanager.commands.addnewentitiestosheet.music_entity_creator import Mus
 from musicmanager.commands.addnewentitiestosheet.parser import MusicEntityInputFileParser
 from musicmanager.commands_common import CommandType, CommandAbs
 from musicmanager.constants import LocalDirs
+from musicmanager.contentprovider.beatport import Beatport
+from musicmanager.contentprovider.facebook import Facebook
+from musicmanager.contentprovider.soundcloud import SoundCloud
+from musicmanager.contentprovider.youtube import Youtube
 from musicmanager.statistics import RowStats
 
 ROWS_TO_FETCH = 3000
@@ -31,6 +35,8 @@ class OperationMode(Enum):
 class AddNewMusicEntityCommandConfig:
     def __init__(self, args, parser=None):
         self.gsheet_wrapper = None
+        self.fb_password = args.fbpwd
+        self.fb_username = args.fbuser
         self._validate(args, parser)
         self.src_file = args.src_file
         self.duplicate_detection = args.duplicate_detection
@@ -66,6 +72,11 @@ class AddNewMusicEntityCommandConfig:
         if not hasattr(self, "src_file"):
             # TODO hardcoded filename
             self.src_file = os.path.join(input_files_dir, "mixes.txt")
+
+        # Sanitize Facebook login data
+        chars_to_remove = '\'\"'
+        self.fb_username = self.fb_username.lstrip(chars_to_remove).rstrip(chars_to_remove)
+        self.fb_password = self.fb_password.lstrip(chars_to_remove).rstrip(chars_to_remove)
 
     @staticmethod
     def _validate_operation_mode(args):
@@ -109,6 +120,12 @@ class AddNewMusicEntityCommand(CommandAbs):
                             default=True,
                             help='Whether to detect and not add duplicate items',
                             required=False)
+        parser.add_argument('--fbpwd',
+                            help='Facebook password',
+                            required=True)
+        parser.add_argument('--fbuser',
+                            help='Facebook username',
+                            required=True)
 
     @staticmethod
     def execute(args, parser=None):
@@ -138,7 +155,12 @@ class AddNewMusicEntityCommand(CommandAbs):
                                                                  col_indices_by_fields)
             parsed_objs = self.filter_duplicates(objs_from_sheet, parsed_objs)
 
-        music_entities = MusicEntityCreator.create_music_entities(parsed_objs)
+        facebook = Facebook(self.config)
+        content_providers = [Youtube(), facebook, Beatport(), SoundCloud()]
+        urls_to_match = [m for cp in content_providers for m in cp.url_matchers()]
+        facebook.urls_to_match = urls_to_match
+        music_entity_creator = MusicEntityCreator(content_providers)
+        music_entities = music_entity_creator.create_music_entities(parsed_objs)
         self.data = DataConverter.convert_data_to_rows(music_entities, parser.extended_config.fields, col_indices_by_fields)
 
         if not self.header:

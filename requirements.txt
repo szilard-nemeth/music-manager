@@ -14,4 +14,15 @@ youtube-dl
 bs4
 requests
 requests-html
+selenium
+
+#for requests-html
 appdirs
+
+####TESTING
+#pycryptodome
+browser-cookie3
+
+#for browser-cookie3
+#keyring
+

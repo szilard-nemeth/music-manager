@@ -2,3 +2,6 @@
 .idea
 venv
 logs
+/throwaway/selenium/
+/musicmanager/selenium/
+/throwaway/geckodriver.log

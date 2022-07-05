@@ -1,14 +1,12 @@
+import logging
 from enum import Enum
 from typing import List, Tuple, Set, Iterable
 
 from string_utils import auto_str
 
 from musicmanager.common import Duration
-from musicmanager.contentprovider.beatport import Beatport
 from musicmanager.contentprovider.common import ContentProviderAbs
-from musicmanager.contentprovider.facebook import Facebook
-from musicmanager.contentprovider.youtube import Youtube
-import logging
+
 LOG = logging.getLogger(__name__)
 
 
@@ -33,15 +31,15 @@ class MusicEntity:
 
 
 class MusicEntityCreator:
-    content_providers: List[ContentProviderAbs] = [Youtube(), Facebook(), Beatport()]
+    def __init__(self, content_providers: List[ContentProviderAbs]):
+        self.content_providers = content_providers
 
-    @staticmethod
-    def create_music_entities(parsed_objs):
+    def create_music_entities(self, parsed_objs):
         music_entities = []
         for obj in parsed_objs:
             links = MusicEntityCreator._get_links_of_parsed_objs(obj)
             LOG.info("Found links from source file: %s", links)
-            durations: List[Tuple[Duration, str]] = MusicEntityCreator.check_links_against_providers(links, allow_emit=True)
+            durations: List[Tuple[Duration, str]] = self.check_links_against_providers(links, allow_emit=True)
             for duration_tup in durations:
                 entity_type = MusicEntityCreator._determine_entity_type(duration_tup[0])
                 entity = MusicEntity(obj, duration_tup[0], duration_tup[1], entity_type)
@@ -64,19 +62,18 @@ class MusicEntityCreator:
             entity_type = MusicEntityType.MIX
         return entity_type
 
-    @classmethod
-    def check_links_against_providers(cls, links: Iterable[str], allow_emit=False) -> List[Tuple[Duration, str]]:
+    def check_links_against_providers(self, links: Iterable[str], allow_emit=False) -> List[Tuple[Duration, str]]:
         all_links: List[Tuple[Duration, str]] = []
         for link in links:
             link_handled = False
-            for provider in MusicEntityCreator.content_providers:
+            for provider in self.content_providers:
                 LOG.debug("Checking if provider '%s' can handle link: %s", provider, link)
                 if provider.can_handle_url(link):
                     link_handled = True
                     if not provider.is_media_provider() and allow_emit:
                         emitted_links: Set[str] = provider.emit_links(link)
                         LOG.debug("Emitted links: %s", emitted_links)
-                        res = cls.check_links_against_providers(emitted_links, allow_emit=False)
+                        res = self.check_links_against_providers(emitted_links, allow_emit=False)
                         all_links.extend(res)
                     else:
                         all_links.append(provider.determine_duration_by_url(link))
