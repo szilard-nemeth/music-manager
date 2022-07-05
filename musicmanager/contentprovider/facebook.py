@@ -5,6 +5,7 @@ import logging
 import pickle
 import re
 from typing import Tuple, Set
+from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 
 import requests
 from requests import Response
@@ -80,17 +81,16 @@ class Facebook(ContentProviderAbs):
         if private_post:
             # Private FB post content
             links = self.fb_selenium.load_links_from_private_content(url)
-            filtered_links = self._filter_links(links)
-            return filtered_links
+            return self._filter_links(links)
         elif private_group_post:
             # Private FB group content
             if private_group_soup:
                 links = self.fb_selenium.load_links_from_private_content_soup(private_group_soup)
             else:
                 links = self.fb_selenium.load_links_from_private_content(url)
-            filtered_links = self._filter_links(links)
-            return filtered_links
+            return self._filter_links(links)
         else:
+            # Public FB post
             data = soup.findAll('div', attrs={'class': 'userContentWrapper'})
             if not data:
                 links = self._find_links_in_html_comments(url, soup)
@@ -110,14 +110,26 @@ class Facebook(ContentProviderAbs):
     def _find_private_fb_group_div(soup):
         return soup.find_all("div", string="Private group")
 
-    def _filter_links(self, links):
+    def _filter_links(self, links, remove_fbclid=True):
         filtered_links = set()
         for link in links:
             for url_to_match in self.urls_to_match:
                 if url_to_match in link:
-                    filtered_links.add(link)
+                    if remove_fbclid:
+                        mod_link = self._remove_fbclid(link)
+                        filtered_links.add(mod_link)
+                    else:
+                        filtered_links.add(link)
                     break
         return filtered_links
+
+    @staticmethod
+    def _remove_fbclid(url):
+        u = urlparse(url)
+        query = parse_qs(u.query, keep_blank_values=True)
+        query.pop('fbclid', None)
+        u = u._replace(query=urlencode(query, True))
+        return urlunparse(u)
 
     def _find_links_with_js_rendering(self, url):
         resp = self._render_url_with_javascript(url)
