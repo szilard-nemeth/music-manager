@@ -13,3 +13,5 @@ typing-extensions
 youtube-dl
 bs4
 requests
+requests-html
+appdirs
