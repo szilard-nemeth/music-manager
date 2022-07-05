@@ -1,14 +1,13 @@
-import re
-from typing import Tuple, Set, Iterable
-
 import logging
 import pickle
 import re
+from typing import Iterable, List
 from typing import Tuple, Set
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 
 import requests
 from requests import Response
+from selenium import webdriver
 from selenium.common import ElementNotVisibleException, ElementNotSelectableException, NoSuchElementException, \
     TimeoutException
 from selenium.webdriver.chrome.options import Options
@@ -16,7 +15,6 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions
 from selenium.webdriver.support.wait import WebDriverWait
 from string_utils import auto_str
-from selenium import webdriver
 
 from musicmanager.common import Duration
 from musicmanager.contentprovider.common import ContentProviderAbs
@@ -81,22 +79,22 @@ class Facebook(ContentProviderAbs):
         if private_post:
             # Private FB post content
             links = self.fb_selenium.load_links_from_private_content(url)
-            return self._filter_links(links)
+            return FacebookLinkParser.filter_links(links, self.urls_to_match)
         elif private_group_post:
             # Private FB group content
             if private_group_soup:
                 links = self.fb_selenium.load_links_from_private_content_soup(private_group_soup)
             else:
                 links = self.fb_selenium.load_links_from_private_content(url)
-            return self._filter_links(links)
+            return FacebookLinkParser.filter_links(links, self.urls_to_match)
         else:
             # Public FB post
-            data = soup.findAll('div', attrs={'class': 'userContentWrapper'})
-            if not data:
+            div = soup.findAll('div', attrs={'class': 'userContentWrapper'})
+            if not div:
                 links = self._find_links_in_html_comments(url, soup)
                 if not links:
                     LOG.info("Falling back to Javascript-rendered webpage scraping for URL '%s'", url)
-                    links = self._find_links_with_js_rendering(url)
+                    links = FacebookLinkParser._find_links_with_js_rendering(url)
                 return links
             else:
                 # TODO implement?
@@ -110,92 +108,12 @@ class Facebook(ContentProviderAbs):
     def _find_private_fb_group_div(soup):
         return soup.find_all("div", string="Private group")
 
-    def _filter_links(self, links, remove_fbclid=True):
-        filtered_links = set()
-        for link in links:
-            for url_to_match in self.urls_to_match:
-                if url_to_match in link:
-                    if remove_fbclid:
-                        mod_link = self._remove_fbclid(link)
-                        filtered_links.add(mod_link)
-                    else:
-                        filtered_links.add(link)
-                    break
-        return filtered_links
-
-    @staticmethod
-    def _remove_fbclid(url):
-        u = urlparse(url)
-        query = parse_qs(u.query, keep_blank_values=True)
-        query.pop('fbclid', None)
-        u = u._replace(query=urlencode(query, True))
-        return urlunparse(u)
-
-    def _find_links_with_js_rendering(self, url):
-        resp = self._render_url_with_javascript(url)
-        links = resp.html.links
-        filtered_links = self._filter_facebook_redirect_links(links)
-        LOG.debug("[orig: %s] Found links on JS rendered page: %s", url, filtered_links)
-
-        final_links = set()
-        for link in filtered_links:
-            unescaped_link = Facebook._get_final_link_from_fb_redirect_link(link, url)
-            final_links.add(unescaped_link)
-        return final_links
-
     @staticmethod
     def _render_url_with_javascript(url):
         session = HTMLSession()
         resp: Response = session.get(url)
         resp.html.render()
         return resp
-
-    @staticmethod
-    def _find_links_in_html_comments(url, soup) -> Set[str]:
-        # Find in comments
-        # Data can be in:
-        # <div class="hidden_elem">
-        #   <code id="u_0_m_lP">
-        #   <!-- <div class="_4-u2 mbm _4mrt _5v3q _7cqq _4-u8" id="u_0_b_Ga">
-        #          <div class="_3ccb" data-ft="&#123;&quot;tn&quot;:&quot;-R&quot;&#125;" data-gt="&#123;&quot;type&quot;:&quot;click2canvas&quot;,&quot;fbsource&quot;:703,&quot;ref&quot;:&quot;nf_generic&quot;&#125;" id="u_0_d_Q9">
-        #          <div>
-        #          </div>
-        #          <div class="_5pcr userContentWrapper"
-        found_links = set()
-        comments = soup.find_all(text=lambda text: isinstance(text, Comment))
-        for comment in comments:
-            comment_soup = create_bs(comment)
-            divs = comment_soup.find_all('div', attrs={'class': 'userContentWrapper'})
-            for div in divs:
-                links = div.findAll('a')
-                orig_links = [a['href'] for a in links]
-                fb_redirect_links = Facebook._filter_facebook_redirect_links(orig_links)
-                for redir_link in fb_redirect_links:
-                    unescaped_link = Facebook._get_final_link_from_fb_redirect_link(redir_link, url)
-                    found_links.add(unescaped_link)
-        LOG.debug("[orig: %s] Found links: %s", url, found_links)
-        return found_links
-
-    @staticmethod
-    def _get_final_link_from_fb_redirect_link(link, orig_url):
-        resp = requests.get(link)
-        # Example URL: https://l.facebook.com/l.php?u=https%3A%2F%2Fyoutube.com%2Fwatch%3Fv%3DcI6tWuNlwZ4%26feature%3Dshare&h=AT2ELdFoLuLKA4TH-ft6vMySk5HQWZq6KNRPxHvdlBxOWqr4vYi-iujE5SaUn9oLwZLFYOvQsvcDo7JDUQ7yX2REXm7CIk3mJnPrXXWlMYxzh5uEVWeZwLFZlR0iZvTGIlnCiPseDFGbctntdYSg4456Prq-Oqc-ZT8aRR8QBNYC2A_DvNzzftV-al8RVSQSxI2N8Xw
-        # Will give something like:
-        # <script type="text/javascript" nonce="Fb99FNm1">
-        #       document.location.replace("https:\\/\\/youtube.com\\/watch?v=cI6tWuNlwZ4&feature=share");
-        # </script>
-        LOG.debug("[orig: %s] Response of link '%s': %s", orig_url, link, resp.text)
-        match = re.search(r"document\.location\.replace\(\"(.*)\"\)", resp.text)
-        # TODO Error handling for not found group(1)
-        found_group = match.group(1)
-        unescaped_link = found_group.replace("\\/", "/")
-        LOG.debug(unescaped_link)
-        return unescaped_link
-
-    @staticmethod
-    def _filter_facebook_redirect_links(links) -> Set[str]:
-        filtered_links = set(filter(lambda x: FACEBOOK_REDIRECT_LINK in x, links))
-        return filtered_links
 
     @staticmethod
     def string_escape(s, encoding='utf-8'):
@@ -305,3 +223,91 @@ class FacebookLinkParser:
         links = set([a['href'] for a in anchors])
         LOG.info("Found links: %s", links)
         return links
+
+    @staticmethod
+    def filter_links(links: List[str], urls_to_match: List[str], remove_fbclid=True):
+        filtered_links = set()
+        for link in links:
+            for url_to_match in urls_to_match:
+                if url_to_match in link:
+                    if remove_fbclid:
+                        mod_link = FacebookLinkParser.remove_fbclid(link)
+                        filtered_links.add(mod_link)
+                    else:
+                        filtered_links.add(link)
+                    break
+        return filtered_links
+
+    @staticmethod
+    def filter_facebook_redirect_links(links: List[str]) -> Set[str]:
+        filtered_links = set(filter(lambda x: FACEBOOK_REDIRECT_LINK in x, links))
+        return filtered_links
+
+    @staticmethod
+    def remove_fbclid(url: str) -> str:
+        u = urlparse(url)
+        query = parse_qs(u.query, keep_blank_values=True)
+        query.pop('fbclid', None)
+        u = u._replace(query=urlencode(query, True))
+        return urlunparse(u)
+
+    @staticmethod
+    def _find_links_in_html_comments(url: str, soup:  BeautifulSoup) -> Set[str]:
+        # Find in comments
+        # Data can be in:
+        # <div class="hidden_elem">
+        #   <code id="u_0_m_lP">
+        #   <!-- <div class="_4-u2 mbm _4mrt _5v3q _7cqq _4-u8" id="u_0_b_Ga">
+        #          <div class="_3ccb" data-ft="&#123;&quot;tn&quot;:&quot;-R&quot;&#125;" data-gt="&#123;&quot;type&quot;:&quot;click2canvas&quot;,&quot;fbsource&quot;:703,&quot;ref&quot;:&quot;nf_generic&quot;&#125;" id="u_0_d_Q9">
+        #          <div>
+        #          </div>
+        #          <div class="_5pcr userContentWrapper"
+        found_links = set()
+        comments = soup.find_all(text=lambda text: isinstance(text, Comment))
+        for comment in comments:
+            comment_soup = create_bs(comment)
+            divs = comment_soup.find_all('div', attrs={'class': 'userContentWrapper'})
+            for div in divs:
+                links = div.findAll('a')
+                orig_links = [a['href'] for a in links]
+                fb_redirect_links = FacebookLinkParser.filter_facebook_redirect_links(orig_links)
+                for redir_link in fb_redirect_links:
+                    unescaped_link = Facebook._get_final_link_from_fb_redirect_link(redir_link, url)
+                    found_links.add(unescaped_link)
+        LOG.debug("[orig: %s] Found links: %s", url, found_links)
+        return found_links
+
+    def _find_links_with_js_rendering(self, url):
+        resp = Facebook._render_url_with_javascript(url)
+        links = resp.html.links
+        filtered_links = FacebookLinkParser.filter_facebook_redirect_links(links)
+        LOG.debug("[orig: %s] Found links on JS rendered page: %s", url, filtered_links)
+
+        final_links = set()
+        for link in filtered_links:
+            unescaped_link = FacebookLinkParser._get_final_link_from_fb_redirect_link(link, url)
+            final_links.add(unescaped_link)
+        return final_links
+
+    @staticmethod
+    def _get_final_link_from_fb_redirect_link(link, orig_url):
+        """
+        Example URL of Facebook redirect: https://l.facebook.com/l.php?u=https%3A%2F%2Fyoutube.com%2Fwatch%3Fv%3DcI6tWuNlwZ4%26feature%3Dshare&h=AT2ELdFoLuLKA4TH-ft6vMySk5HQWZq6KNRPxHvdlBxOWqr4vYi-iujE5SaUn9oLwZLFYOvQsvcDo7JDUQ7yX2REXm7CIk3mJnPrXXWlMYxzh5uEVWeZwLFZlR0iZvTGIlnCiPseDFGbctntdYSg4456Prq-Oqc-ZT8aRR8QBNYC2A_DvNzzftV-al8RVSQSxI2N8Xw
+        Will give something like:
+        <script type="text/javascript" nonce="Fb99FNm1">
+              document.location.replace("https:\\/\\/youtube.com\\/watch?v=cI6tWuNlwZ4&feature=share");
+        </script>
+        Args:
+            link:
+            orig_url:
+
+        Returns:
+        """
+        resp = requests.get(link)
+        LOG.debug("[orig: %s] Response of link '%s': %s", orig_url, link, resp.text)
+        match = re.search(r"document\.location\.replace\(\"(.*)\"\)", resp.text)
+        # TODO Error handling for not found group(1)
+        found_group = match.group(1)
+        unescaped_link = found_group.replace("\\/", "/")
+        LOG.debug(unescaped_link)
+        return unescaped_link
