@@ -89,7 +89,7 @@ class Facebook(ContentProviderAbs):
             # Public FB post
             div = soup.findAll('div', attrs={'class': 'userContentWrapper'})
             if not div:
-                links = self._find_links_in_html_comments(url, soup)
+                links = FacebookLinkParser.find_links_in_html_comments(url, soup)
                 if not links:
                     LOG.info("Falling back to Javascript-rendered webpage scraping for URL '%s'", url)
                     links = FacebookLinkParser.find_links_with_js_rendering(url)
@@ -144,7 +144,7 @@ class FacebookSelenium:
     def load_url_as_soup(self, url) -> BeautifulSoup:
         self._init_webdriver()
         self.driver.get(self.FACEBOOK_COM)
-        loaded = self._wait_for_fb_page_load(timeout=5, throw_exception=False)
+        loaded = self._wait_for_fb_page_load(timeout=20, throw_exception=False)
         if not loaded:
             self._do_initial_facebook_login()
         self.driver.get(url)
@@ -160,7 +160,7 @@ class FacebookSelenium:
 
     def _wait_for_fb_page_load(self, timeout, throw_exception=False):
         try:
-            wait = WebDriverWait(self.driver, timeout=timeout, poll_frequency=4,
+            wait = WebDriverWait(self.driver, timeout=timeout, poll_frequency=2,
                                  ignored_exceptions=[NoSuchElementException, ElementNotVisibleException,
                                                      ElementNotSelectableException])
             success = wait.until(expected_conditions.element_to_be_clickable((By.XPATH, self.FEELING_BUTTON_XPATH)))
@@ -227,7 +227,19 @@ class FacebookLinkParser:
                     else:
                         filtered_links.add(link)
                     break
-        return filtered_links
+        
+        final_links = set()
+        for link in filtered_links:
+            if FACEBOOK_REDIRECT_LINK in link:
+                unescaped_link = FacebookLinkParser._get_final_link_from_fb_redirect_link(link, orig_url="unknown")
+                if remove_fbclid:
+                    unescaped_link = FacebookLinkParser.remove_fbclid(unescaped_link)
+                    final_links.add(unescaped_link)
+                else:
+                    final_links.add(unescaped_link)
+            else:
+                final_links.add(link)
+        return final_links
 
     @staticmethod
     def filter_facebook_redirect_links(links: List[str]) -> Set[str]:
@@ -243,7 +255,7 @@ class FacebookLinkParser:
         return urlunparse(u)
 
     @staticmethod
-    def _find_links_in_html_comments(url: str, soup:  BeautifulSoup) -> Set[str]:
+    def find_links_in_html_comments(url: str, soup:  BeautifulSoup) -> Set[str]:
         # Find in comments
         # Data can be in:
         # <div class="hidden_elem">
@@ -301,5 +313,5 @@ class FacebookLinkParser:
         # TODO Error handling for not found group(1)
         found_group = match.group(1)
         unescaped_link = found_group.replace("\\/", "/")
-        LOG.debug(unescaped_link)
+        LOG.debug("Link '%s' resolved to '%s'", link, unescaped_link)
         return unescaped_link
