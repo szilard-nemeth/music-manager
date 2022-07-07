@@ -126,6 +126,7 @@ class FacebookSelenium:
         self.config = config
         self.chrome_options = None
         self.driver = None
+        self.logged_in = False
 
     def load_links_from_private_content(self, url: str):
         LOG.info("Loading private Facebook post content...")
@@ -139,13 +140,22 @@ class FacebookSelenium:
 
     def load_url_as_soup(self, url) -> BeautifulSoup:
         self._init_webdriver()
+        if not self.logged_in:
+            self._login()
+
+        if self.driver.current_url != url:
+            self.driver.get(url)
+        else:
+            LOG.debug("Current URL matches desired URL '%s', not loading again", url)
+        html = self.driver.page_source
+        return create_bs(html)
+
+    def _login(self):
         self.driver.get(self.FACEBOOK_COM)
         loaded = self._wait_for_fb_page_load(timeout=20, throw_exception=False)
         if not loaded:
             self._do_initial_facebook_login()
-        self.driver.get(url)
-        html = self.driver.page_source
-        return create_bs(html)
+        self.logged_in = True
 
     def _init_webdriver(self):
         if not self.chrome_options:
