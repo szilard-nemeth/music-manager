@@ -16,8 +16,8 @@ class Duration:
 
     def __post_init__(self):
         if self.orig_seconds != Duration.UNKNOWN:
-            self.minutes = int(self.orig_seconds / 60)
-            self.seconds = self.orig_seconds % 60
+            self.minutes, self.seconds = divmod(self.orig_seconds, 60)
+            self.hours = divmod(self.minutes, 60)
         else:
             self.minutes = 0
             self.seconds = 0
