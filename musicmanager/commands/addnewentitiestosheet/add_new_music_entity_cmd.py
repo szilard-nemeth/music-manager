@@ -196,13 +196,9 @@ class AddNewMusicEntityCommand(CommandAbs):
             parsed_objs = self.filter_duplicates(objs_from_sheet, parsed_objs)
 
         music_entity_creator = self._create_music_entity_creator()
-        entitites = []
-        for src_file in self.config.src_files:
-            parsed_objs.extend(parser.parse(src_file))
-            music_entities = music_entity_creator.create_music_entities(parsed_objs)
-            entitites.extend(music_entities)
+        music_entities = music_entity_creator.create_music_entities(parsed_objs)
 
-        self.rows = DataConverter.convert_data_to_rows(entitites, parser.extended_config.fields, col_indices_by_fields)
+        self.rows = DataConverter.convert_data_to_rows(music_entities, parser.extended_config.fields, col_indices_by_fields)
         self._update_google_sheet(col_indices_by_fields, parser)
 
     def _update_google_sheet(self, col_indices_by_fields, parser):
