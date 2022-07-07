@@ -62,13 +62,14 @@ class Facebook(ContentProviderAbs):
 
         private_group_soup = None
         if all([not private_post, not private_group_post]):
-            # Try to read page with JS or Selenium
+            # Try to read page with Javascript (requests-html) or Selenium
             soup = self.js_renderer.render_with_javascript(url)
             private_group_post = self._find_private_fb_group_div(soup)
             if not private_group_post:
-                # Finally, try with Selenium
-                private_group_soup = self.fb_selenium.load_url_as_soup(url)
-                private_group_post = self._find_private_fb_group_div(private_group_soup)
+                if not self.js_renderer.use_selenium:
+                    # Finally, force try with Selenium
+                    private_group_soup = self.fb_selenium.load_url_as_soup(url)
+                    private_group_post = self._find_private_fb_group_div(private_group_soup)
 
         if private_post:
             # Private FB post content
