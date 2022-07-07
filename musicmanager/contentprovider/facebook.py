@@ -24,36 +24,13 @@ LOG = logging.getLogger(__name__)
 from bs4 import BeautifulSoup, Comment, Tag
 
 
-@auto_str
-class Facebook(ContentProviderAbs):
-    HEADERS = {
-        "accept-language": "en-US,en;q=0.9"
-    }
+class FacebookLinkEmitter:
+    def __init__(self, js_renderer, fb_selenium, fb_link_parser):
+        self.fb_link_parser = fb_link_parser
+        self.fb_selenium = fb_selenium
+        self.js_renderer = js_renderer
 
-    def __init__(self, config, js_renderer, fb_selenium, fb_link_parser):
-        self.config = config
-        self.js_renderer: JSRenderer = js_renderer
-        self.fb_selenium: FacebookSelenium = fb_selenium
-        self.fb_link_parser: FacebookLinkParser = fb_link_parser
-
-    @classmethod
-    def url_matchers(cls) -> Iterable[str]:
-        return [FACEBOOK_REDIRECT_LINK]
-
-    def is_media_provider(self):
-        return False
-
-    def can_handle_url(self, url):
-        if FACEBOOK_URL_FRAGMENT1 in url:
-            return True
-        return False
-
-    def determine_duration_by_url(self, url: str) -> Tuple[Duration, str]:
-        return Duration.unknown(), url
-
-    def emit_links(self, url) -> Set[str]:
-        # TODO Introduce new class that ties together the emitting logic: private post, private group post, public post, public group post
-        LOG.info("Emitting links from provider '%s'", self)
+    def emit_links(self, url):
         resp = requests.get(url, headers=Facebook.HEADERS)
         soup = BeautifulSoupHelper.create_bs(resp.text)
 
@@ -104,6 +81,37 @@ class Facebook(ContentProviderAbs):
             else:
                 # TODO implement?
                 pass
+
+
+@auto_str
+class Facebook(ContentProviderAbs):
+    HEADERS = {
+        "accept-language": "en-US,en;q=0.9"
+    }
+
+    def __init__(self, config, js_renderer, fb_selenium, fb_link_parser):
+        self.config = config
+        self.fb_link_emitter = FacebookLinkEmitter(js_renderer, fb_selenium, fb_link_parser)
+
+    @classmethod
+    def url_matchers(cls) -> Iterable[str]:
+        return [FACEBOOK_REDIRECT_LINK]
+
+    def is_media_provider(self):
+        return False
+
+    def can_handle_url(self, url):
+        if FACEBOOK_URL_FRAGMENT1 in url:
+            return True
+        return False
+
+    def determine_duration_by_url(self, url: str) -> Tuple[Duration, str]:
+        return Duration.unknown(), url
+
+    def emit_links(self, url) -> Set[str]:
+        # TODO Introduce new class that ties together the emitting logic: private post, private group post, public post, public group post
+        LOG.info("Emitting links from provider '%s'", self)
+        return self.fb_link_emitter.emit_links(url)
 
     @staticmethod
     def string_escape(s, encoding='utf-8'):
