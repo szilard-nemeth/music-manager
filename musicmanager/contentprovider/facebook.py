@@ -92,7 +92,7 @@ class Facebook(ContentProviderAbs):
                 links = FacebookLinkParser.find_links_in_html_comments(url, soup)
                 if not links:
                     LOG.info("Falling back to Javascript-rendered webpage scraping for URL '%s'", url)
-                    links = FacebookLinkParser.find_links_with_js_rendering(url)
+                    links = FacebookLinkParser.find_links_with_js_rendering(self.js_renderer, url)
                 return links
             else:
                 # TODO implement?
