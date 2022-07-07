@@ -21,8 +21,7 @@ from musicmanager.contentprovider.common import ContentProviderAbs, JSRenderer, 
 FACEBOOK_URL_FRAGMENT1 = "facebook.com"
 FACEBOOK_REDIRECT_LINK = "https://l.facebook.com/l.php"
 LOG = logging.getLogger(__name__)
-from bs4 import BeautifulSoup, Comment
-
+from bs4 import BeautifulSoup, Comment, Tag
 
 
 @auto_str
@@ -62,6 +61,7 @@ class Facebook(ContentProviderAbs):
 
         private_group_soup = None
         if all([not private_post, not private_group_post]):
+            # TODO this should not run as it could be public FB post
             # Try to read page with Javascript (requests-html) or Selenium
             soup = self.js_renderer.render_with_javascript(url)
             private_group_post = self._find_private_fb_group_div(soup)
@@ -83,13 +83,21 @@ class Facebook(ContentProviderAbs):
                 links = self.fb_selenium.load_links_from_private_content(url)
             return FacebookLinkParser.filter_links(links, self.urls_to_match)
         else:
-            # Public FB post
-            div = soup.findAll('div', attrs={'class': 'userContentWrapper'})
-            if not div:
-                links = FacebookLinkParser.find_links_in_html_comments(url, soup)
+            # Public FB post from a user
+            # TODO Move these to FacebookLinkParser?
+            usr_content_wrapper_divs = soup.findAll('div', attrs={'class': 'userContentWrapper'})
+            if not usr_content_wrapper_divs:
+                # Public FB group post
+                divs_wo_class = soup.findAll('div', attrs={'class': None})
+                links = []
+                for div in divs_wo_class:
+                    links.extend(FacebookLinkParser.find_links_in_div(div))
+                links = FacebookLinkParser.filter_links(links, self.urls_to_match)
                 if not links:
-                    LOG.info("Falling back to Javascript-rendered webpage scraping for URL '%s'", url)
-                    links = FacebookLinkParser.find_links_with_js_rendering(self.js_renderer, self.urls_to_match, url)
+                    links = FacebookLinkParser.find_links_in_html_comments(url, soup)
+                    if not links:
+                        LOG.info("Falling back to Javascript-rendered webpage scraping for URL '%s'", url)
+                        links = FacebookLinkParser.find_links_with_js_rendering(self.js_renderer, self.urls_to_match, url)
                 return links
             else:
                 # TODO implement?
@@ -280,14 +288,20 @@ class FacebookLinkParser:
             comment_soup = BeautifulSoupHelper.create_bs(comment)
             divs = comment_soup.find_all('div', attrs={'class': 'userContentWrapper'})
             for div in divs:
-                anchors = div.findAll('a')
-                orig_links = [a['href'] for a in anchors]
+                # TODO Find all links by providers as well (not just FB redirect links)
+                orig_links = FacebookLinkParser.find_links_in_div(div)
                 fb_redirect_links = FacebookLinkParser.filter_facebook_redirect_links(orig_links)
                 for redir_link in fb_redirect_links:
                     unescaped_link = FacebookLinkParser._get_final_link_from_fb_redirect_link(redir_link, url)
                     found_links.add(unescaped_link)
         LOG.debug("[orig: %s] Found links: %s", url, found_links)
         return found_links
+
+    @staticmethod
+    def find_links_in_div(div: Tag):
+        anchors = div.findAll('a')
+        links = [a['href'] for a in anchors]
+        return links
 
     @staticmethod
     def find_links_with_js_rendering(renderer, urls_to_match, url):
