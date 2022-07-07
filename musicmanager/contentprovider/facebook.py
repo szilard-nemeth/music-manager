@@ -88,7 +88,7 @@ class Facebook(ContentProviderAbs):
                 links = FacebookLinkParser.find_links_in_html_comments(url, soup)
                 if not links:
                     LOG.info("Falling back to Javascript-rendered webpage scraping for URL '%s'", url)
-                    links = FacebookLinkParser.find_links_with_js_rendering(self.js_renderer, url)
+                    links = FacebookLinkParser.find_links_with_js_rendering(self.js_renderer, self.urls_to_match, url)
                 return links
             else:
                 # TODO implement?
@@ -217,13 +217,15 @@ class FacebookLinkParser:
     @staticmethod
     def find_links_in_soup(soup: BeautifulSoup) -> Iterable[str]:
         anchors = soup.findAll("a")
-        links = set([a['href'] for a in anchors])
+        filtered_anchors = list(filter(lambda a: 'href' in a.attrs, anchors))
+        links = set([a['href'] for a in filtered_anchors])
         LOG.info("Found links: %s", links)
         return links
 
     @staticmethod
     def filter_links(links: Iterable[str], urls_to_match: List[str], remove_fbclid=True):
         filtered_links = set()
+        # TODO add FB redirect links to urls_to_match
         for link in links:
             for url_to_match in urls_to_match:
                 if url_to_match in link:
@@ -287,16 +289,20 @@ class FacebookLinkParser:
         return found_links
 
     @staticmethod
-    def find_links_with_js_rendering(renderer, url):
+    def find_links_with_js_rendering(renderer, urls_to_match, url):
         soup = renderer.render_with_javascript(url)
         links = FacebookLinkParser.find_links_in_soup(soup)
-        filtered_links = FacebookLinkParser.filter_facebook_redirect_links(links)
+        filtered_links = FacebookLinkParser.filter_links(links, urls_to_match)
+        # filtered_links = FacebookLinkParser.filter_facebook_redirect_links(links)
         LOG.debug("[orig: %s] Found links on JS rendered page: %s", url, filtered_links)
 
         final_links = set()
         for link in filtered_links:
-            unescaped_link = FacebookLinkParser._get_final_link_from_fb_redirect_link(link, url)
-            final_links.add(unescaped_link)
+            if link.startswith(FACEBOOK_REDIRECT_LINK):
+                unescaped_link = FacebookLinkParser._get_final_link_from_fb_redirect_link(link, url)
+                final_links.add(unescaped_link)
+            else:
+                final_links.add(link)
         return final_links
 
     @staticmethod
