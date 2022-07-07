@@ -25,7 +25,7 @@ LOG = logging.getLogger(__name__)
 from bs4 import BeautifulSoup, Comment
 
 
-def create_bs(html):
+def create_bs(html) -> BeautifulSoup:
     return BeautifulSoup(html, features=BS4_HTML_PARSER)
 
 
@@ -39,6 +39,7 @@ class Facebook(ContentProviderAbs):
         self.config = config
         self.fb_selenium = FacebookSelenium(self.config)
         self.urls_to_match = None
+        self.js_renderer = JSRenderer(self.config.js_renderer, self.fb_selenium)
 
     def url_matchers(self) -> Iterable[str]:
         return [FACEBOOK_REDIRECT_LINK]
@@ -65,9 +66,8 @@ class Facebook(ContentProviderAbs):
 
         private_group_soup = None
         if all([not private_post, not private_group_post]):
-            # Try to read page with JS
-            resp = JSRenderer.render_url_with_javascript(url)
-            soup = create_bs(resp.html.html)
+            # Try to read page with JS or Selenium
+            soup = self.js_renderer.render_with_javascript(url)
             private_group_post = self._find_private_fb_group_div(soup)
             if not private_group_post:
                 # Finally, try with Selenium
@@ -209,7 +209,7 @@ class FacebookSelenium:
 
 class FacebookLinkParser:
     @staticmethod
-    def find_links_in_soup(soup: BeautifulSoup):
+    def find_links_in_soup(soup: BeautifulSoup) -> Iterable[str]:
         anchors = soup.findAll("a")
         links = set([a['href'] for a in anchors])
         LOG.info("Found links: %s", links)
@@ -242,7 +242,7 @@ class FacebookLinkParser:
         return final_links
 
     @staticmethod
-    def filter_facebook_redirect_links(links: List[str]) -> Set[str]:
+    def filter_facebook_redirect_links(links: Iterable[str]) -> Set[str]:
         filtered_links = set(filter(lambda x: FACEBOOK_REDIRECT_LINK in x, links))
         return filtered_links
 
@@ -281,9 +281,9 @@ class FacebookLinkParser:
         return found_links
 
     @staticmethod
-    def find_links_with_js_rendering(url):
-        resp = JSRenderer.render_url_with_javascript(url)
-        links = resp.html.links
+    def find_links_with_js_rendering(renderer, url):
+        soup = renderer.render_with_javascript(url)
+        links = FacebookLinkParser.find_links_in_soup(soup)
         filtered_links = FacebookLinkParser.filter_facebook_redirect_links(links)
         LOG.debug("[orig: %s] Found links on JS rendered page: %s", url, filtered_links)
 

@@ -32,11 +32,17 @@ class OperationMode(Enum):
     DRY_RUN = "DRYRUN"
 
 
+class JavaScriptRenderer(Enum):
+    REQUESTS_HTML = 'requests-html'
+    SELENIUM = 'selenium'
+
+
 class AddNewMusicEntityCommandConfig:
     def __init__(self, args, parser=None):
         self.gsheet_wrapper = None
         self.fb_password = args.fbpwd
         self.fb_username = args.fbuser
+        self.js_renderer: JavaScriptRenderer = self._choose_js_renderer(args)
         self._validate(args, parser)
         self.src_file = args.src_file
         self.duplicate_detection = args.duplicate_detection
@@ -99,6 +105,12 @@ class AddNewMusicEntityCommandConfig:
             f"Source file: {self.src_file}\n"
         )
 
+    @staticmethod
+    def _choose_js_renderer(args) -> JavaScriptRenderer:
+        if hasattr(args, 'use_requests_html_for_js') and args.use_requests_html_for_js:
+            return JavaScriptRenderer.REQUESTS_HTML
+        return JavaScriptRenderer.SELENIUM
+
 
 class AddNewMusicEntityCommand(CommandAbs):
     def __init__(self, args, parser=None):
@@ -126,6 +138,12 @@ class AddNewMusicEntityCommand(CommandAbs):
         parser.add_argument('--fbuser',
                             help='Facebook username',
                             required=True)
+        parser.add_argument('--use-requests-html-for-js',
+                            action='store_true',
+                            default=False,
+                            help='Whether to use requests-html library for JS rendering. Otherwise, Selenium will be used.',
+                            required=False
+                            )
 
     @staticmethod
     def execute(args, parser=None):
