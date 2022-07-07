@@ -63,16 +63,18 @@ class AddNewMusicEntityCommandConfig:
             find_result_type=FindResultType.DIRS,
             parent_dir="music-entity-parser"
         )
-        self._determine_input_files(args, parser_config_dir)
+        self.parser_conf_json = os.path.join(parser_config_dir, "parserconfig.json")
+        self._determine_input_files(args)
 
         # Sanitize Facebook login data
         chars_to_remove = '\'\"'
         self.fb_username = self.fb_username.lstrip(chars_to_remove).rstrip(chars_to_remove)
         self.fb_password = self.fb_password.lstrip(chars_to_remove).rstrip(chars_to_remove)
 
-    def _determine_input_files(self, args, parser_config_dir):
+    def _determine_input_files(self, args):
+        self.always_use_project_input_files = args.use_project_input_files
+        self.src_dir = None
         self.src_files = []
-        self.parser_conf_json = os.path.join(parser_config_dir, "parserconfig.json")
 
         if not hasattr(args, "src_dir") and not args.src_dir and \
                 not hasattr(args, "src_file") and not args.src_file:
@@ -81,7 +83,7 @@ class AddNewMusicEntityCommandConfig:
         if hasattr(args, "src_dir") and args.src_dir:
             self.src_dir = args.src_dir
             LOG.info("Using specified source directory: %s", self.src_dir)
-        else:
+        elif self.always_use_project_input_files:
             self.src_dir = SimpleProjectUtils.get_project_dir(
                 basedir=LocalDirs.REPO_ROOT_DIR,
                 dir_to_find="input_files",
@@ -142,6 +144,12 @@ class AddNewMusicEntityCommand(CommandAbs):
         )
         parser.add_argument('--src-file', type=str)
         parser.add_argument('--src-dir', type=str)
+        parser.add_argument('--use-project-input-files',
+                            action='store_true',
+                            default=False,
+                            help='Whether to always use project input files',
+                            required=False
+                            )
         parser.set_defaults(func=AddNewMusicEntityCommand.execute)
         parser.add_argument('--duplicate-detection',
                             action='store_true',
