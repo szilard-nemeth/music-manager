@@ -36,7 +36,7 @@ class NewMixesToListenInputFileParserTest(unittest.TestCase):
             basedir=LocalDirs.REPO_ROOT_DIR,
             dir_to_find="parser_config",
             find_result_type=FindResultType.DIRS,
-            parent_dir="mix-listen-parser"
+            parent_dir="music-entity-parser"
         )
         cls.parser_conf_json = os.path.join(cls.parser_config_dir, "parserconfig.json")
 

@@ -6,7 +6,7 @@ from typing import List, Dict
 
 from googleapiwrapper.google_sheet import GSheetOptions, GSheetWrapper
 from pythoncommons.file_parser.parser_config_reader import GenericLineParserConfig, ParserConfigReader
-from pythoncommons.file_utils import FindResultType
+from pythoncommons.file_utils import FindResultType, FileUtils
 from pythoncommons.project_utils import SimpleProjectUtils
 from pythoncommons.result_printer import BasicResultPrinter
 
@@ -44,7 +44,6 @@ class AddNewMusicEntityCommandConfig:
         self.fb_username = args.fbuser
         self.js_renderer: JavaScriptRenderer = self._choose_js_renderer(args)
         self._validate(args, parser)
-        self.src_file = args.src_file
         self.duplicate_detection = args.duplicate_detection
         self.headers = None
 
@@ -66,23 +65,43 @@ class AddNewMusicEntityCommandConfig:
             basedir=LocalDirs.REPO_ROOT_DIR,
             dir_to_find="parser_config",
             find_result_type=FindResultType.DIRS,
-            parent_dir="mix-listen-parser"
+            parent_dir="music-entity-parser"
         )
-        input_files_dir = SimpleProjectUtils.get_project_dir(
-            basedir=LocalDirs.REPO_ROOT_DIR,
-            dir_to_find="input_files",
-            find_result_type=FindResultType.DIRS,
-            parent_dir="mix-listen-parser"
-        )
-        self.parser_conf_json = os.path.join(parser_config_dir, "parserconfig.json")
-        if not hasattr(self, "src_file"):
-            # TODO hardcoded filename
-            self.src_file = os.path.join(input_files_dir, "mixes.txt")
+        self._determine_input_files(args, parser_config_dir)
 
         # Sanitize Facebook login data
         chars_to_remove = '\'\"'
         self.fb_username = self.fb_username.lstrip(chars_to_remove).rstrip(chars_to_remove)
         self.fb_password = self.fb_password.lstrip(chars_to_remove).rstrip(chars_to_remove)
+
+    def _determine_input_files(self, args, parser_config_dir):
+        self.src_files = []
+        self.parser_conf_json = os.path.join(parser_config_dir, "parserconfig.json")
+
+        if not hasattr(args, "src_dir") and not args.src_dir and \
+                not hasattr(args, "src_file") and not args.src_file:
+            raise ValueError("Either 'src_dir' or 'src_file' should be specified!")
+
+        if hasattr(args, "src_dir") and args.src_dir:
+            self.src_dir = args.src_dir
+            LOG.info("Using specified source directory: %s", self.src_dir)
+        else:
+            self.src_dir = SimpleProjectUtils.get_project_dir(
+                basedir=LocalDirs.REPO_ROOT_DIR,
+                dir_to_find="input_files",
+                find_result_type=FindResultType.DIRS,
+                parent_dir="music-entity-parser"
+            )
+
+        if hasattr(args, "src_file") and args.src_file:
+            self.src_files = [args.src_file]
+
+        if self.src_dir:
+            found_files = FileUtils.find_files(self.src_dir, regex=".*.txt", single_level=False, full_path_result=True)
+            LOG.debug(
+                "Found files in patches output dir: %s",found_files,
+            )
+            self.src_files.extend(found_files)
 
     @staticmethod
     def _validate_operation_mode(args):
@@ -102,7 +121,7 @@ class AddNewMusicEntityCommandConfig:
 
     def __str__(self):
         return (
-            f"Source file: {self.src_file}\n"
+            f"Source files: {self.src_files}\n"
         )
 
     @staticmethod
@@ -116,7 +135,7 @@ class AddNewMusicEntityCommand(CommandAbs):
     def __init__(self, args, parser=None):
         super().__init__()
         self.config = AddNewMusicEntityCommandConfig(args, parser=parser)
-        self.data = None
+        self.rows = None
         self.header = None
 
     @staticmethod
@@ -125,7 +144,8 @@ class AddNewMusicEntityCommand(CommandAbs):
             CommandType.ADD_NEW_MUSIC_ENTITY.name,
             help="Add new mixes to listen." "Example: --src_file /tmp/file1",
         )
-        parser.add_argument('--src_file', type=str)
+        parser.add_argument('--src-file', type=str)
+        parser.add_argument('--src-dir', type=str)
         parser.set_defaults(func=AddNewMusicEntityCommand.execute)
         parser.add_argument('--duplicate-detection',
                             action='store_true',
@@ -157,44 +177,59 @@ class AddNewMusicEntityCommand(CommandAbs):
                                                                               config_type=GenericLineParserConfig)
         LOG.info("Read project config: %s", pformat(config_reader.config))
         parser = MusicEntityInputFileParser(config_reader)
-        parsed_objs = parser.parse(self.config.src_file)
+        col_indices_by_fields = self._init_header_and_columns(parser)
 
-        self.header = list(parser.extended_config.fields.by_sheet_name.keys())
-        if self.config.operation_mode == OperationMode.GSHEET:
-            col_indices_by_fields: Dict[str, int] = self.config.gsheet_wrapper.get_column_indices_of_header()
-        else:
-            col_indices_by_fields: Dict[str, int] = {col_name: idx for idx, col_name in enumerate(self.header)}
+        parsed_objs = []
+        self.rows = []
+        for src_file in self.config.src_files:
+            parsed_objs.extend(parser.parse(src_file))
 
         if self.config.operation_mode == OperationMode.GSHEET and self.config.duplicate_detection:
             LOG.info("Trying to detect duplicates...")
             rows = self.config.gsheet_wrapper.read_data_by_header(ROWS_TO_FETCH, skip_header_row=True)
             LOG.debug("Fetched data from sheet: %s", rows)
-            objs_from_sheet = DataConverter.convert_rows_to_data(rows, parser.extended_config.fields,
-                                                                 col_indices_by_fields)
+            objs_from_sheet = DataConverter.convert_rows_to_data(rows, parser.extended_config.fields, col_indices_by_fields)
             parsed_objs = self.filter_duplicates(objs_from_sheet, parsed_objs)
 
-        facebook = Facebook(self.config)
-        content_providers = [Youtube(), facebook, Beatport(), SoundCloud()]
-        urls_to_match = [m for cp in content_providers for m in cp.url_matchers()]
-        facebook.urls_to_match = urls_to_match
-        music_entity_creator = MusicEntityCreator(content_providers)
-        music_entities = music_entity_creator.create_music_entities(parsed_objs)
-        self.data = DataConverter.convert_data_to_rows(music_entities, parser.extended_config.fields, col_indices_by_fields)
+        music_entity_creator = self._create_music_entity_creator()
+        entitites = []
+        for src_file in self.config.src_files:
+            parsed_objs.extend(parser.parse(src_file))
+            music_entities = music_entity_creator.create_music_entities(parsed_objs)
+            entitites.extend(music_entities)
 
+        self.rows = DataConverter.convert_data_to_rows(entitites, parser.extended_config.fields, col_indices_by_fields)
+        self._update_google_sheet(col_indices_by_fields, parser)
+
+    def _update_google_sheet(self, col_indices_by_fields, parser):
         if not self.header:
             raise ValueError("Header is empty")
-
-        if not self.data:
-            raise ValueError("Data is empty")
-
-        BasicResultPrinter.print_table(self.data, self.header)
+        if not self.rows:
+            raise ValueError("No data to processs (rows)!")
+        BasicResultPrinter.print_table(self.rows, self.header)
         if self.config.operation_mode == OperationMode.GSHEET:
             LOG.info("Updating Google sheet with data...")
             self.update_gsheet(parser, col_indices_by_fields)
         elif self.config.operation_mode == OperationMode.DRY_RUN:
             LOG.info("[DRY-RUN] Would add the following rows to Google Sheets: ")
-            LOG.info(self.data)
+            LOG.info(self.rows)
         LOG.info("Finished adding new music entities")
+
+    def _init_header_and_columns(self, parser):
+        self.header = list(parser.extended_config.fields.by_sheet_name.keys())
+        if self.config.operation_mode == OperationMode.GSHEET:
+            col_indices_by_fields: Dict[str, int] = self.config.gsheet_wrapper.get_column_indices_of_header()
+        else:
+            col_indices_by_fields: Dict[str, int] = {col_name: idx for idx, col_name in enumerate(self.header)}
+        return col_indices_by_fields
+
+    def _create_music_entity_creator(self):
+        facebook = Facebook(self.config)
+        content_providers = [Youtube(), facebook, Beatport(), SoundCloud()]
+        urls_to_match = [m for cp in content_providers for m in cp.url_matchers()]
+        facebook.urls_to_match = urls_to_match
+        music_entity_creator = MusicEntityCreator(content_providers)
+        return music_entity_creator
 
     def update_gsheet(self, parser, col_indices_by_fields):
         # TODO add back later
