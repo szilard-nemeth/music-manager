@@ -1,6 +1,7 @@
 import logging
 import pickle
 import re
+from enum import Enum
 from typing import Iterable, List
 from typing import Tuple, Set
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
@@ -24,6 +25,13 @@ LOG = logging.getLogger(__name__)
 from bs4 import BeautifulSoup, Comment, Tag
 
 
+class FacebookPostType(Enum):
+    PRIVATE_POST = "private_post"
+    PRIVATE_GROUP_POST = "private_group_post"
+    PUBLIC_POST = "public_post"
+    PUBLIC_GROUP_POST = "public_group_post"
+
+
 class FacebookLinkEmitter:
     def __init__(self, js_renderer, fb_selenium, fb_link_parser):
         self.fb_link_parser = fb_link_parser
@@ -31,23 +39,8 @@ class FacebookLinkEmitter:
         self.js_renderer = js_renderer
 
     def emit_links(self, url):
-        resp = requests.get(url, headers=Facebook.HEADERS)
-        soup = BeautifulSoupHelper.create_bs(resp.text)
-
-        private_post = self.fb_link_parser.find_private_fb_post_div(soup)
-        private_group_post = self.fb_link_parser.find_private_fb_group_div(soup)
-
-        private_group_soup = None
-        if all([not private_post, not private_group_post]):
-            # TODO this should not run as it could be public FB post
-            # Try to read page with Javascript (requests-html) or Selenium
-            soup = self.js_renderer.render_with_javascript(url)
-            private_group_post = self.fb_link_parser.find_private_fb_group_div(soup)
-            if not private_group_post:
-                if not self.js_renderer.use_selenium:
-                    # Finally, force try with Selenium
-                    private_group_soup = self.fb_selenium.load_url_as_soup(url)
-                    private_group_post = self.fb_link_parser.find_private_fb_group_div(private_group_soup)
+        soup = self._determine_post_type(url)
+        private_group_post, private_group_soup, private_post, soup = self._determine_if_private(soup, url)
 
         if private_post:
             # Private FB post content
@@ -61,26 +54,55 @@ class FacebookLinkEmitter:
                 links = self.fb_selenium.load_links_from_private_content(url)
             return self.fb_link_parser.filter_links(links)
         else:
-            # Public FB post from a user
-            # TODO Move these to FacebookLinkParser?
-            usr_content_wrapper_divs = self.fb_link_parser.find_user_content_wrapper_divs(soup)
-            if not usr_content_wrapper_divs:
-                # Public FB group post
-                divs_wo_class = self.fb_link_parser.find_divs_with_empty_class(soup)
-                links = []
-                for div in divs_wo_class:
-                    links.extend(FacebookLinkParser.find_links_in_div(div))
-                links = self.fb_link_parser.filter_links(links)
-                if not links:
-                    links = self.fb_link_parser.find_links_in_html_comments(url, soup)
-                    if not links:
-                        LOG.info("Falling back to Javascript-rendered webpage scraping for URL '%s'", url)
-                        soup = self.js_renderer.render_with_javascript(url)
-                        links = self.fb_link_parser.find_links_with_js_rendering(soup, url)
+            return self._handle_public_posts(soup, url)
+
+    def _determine_if_private(self, soup, url):
+        private_post = self.fb_link_parser.find_private_fb_post_div(soup)
+        private_group_post = self.fb_link_parser.find_private_fb_group_div(soup)
+        private_group_soup = None
+        if all([not private_post, not private_group_post]):
+            # TODO this should not run as it could be public FB post
+            # Try to read page with Javascript (requests-html) or Selenium
+            soup = self.js_renderer.render_with_javascript(url)
+            private_group_post = self.fb_link_parser.find_private_fb_group_div(soup)
+            if not private_group_post:
+                if not self.js_renderer.use_selenium:
+                    # Finally, force try with Selenium
+                    private_group_soup = self.fb_selenium.load_url_as_soup(url)
+                    private_group_post = self.fb_link_parser.find_private_fb_group_div(private_group_soup)
+        return private_group_post, private_group_soup, private_post, soup
+
+    def _handle_public_posts(self, soup, url):
+        # Public FB post from a user
+        # TODO Move these to FacebookLinkParser?
+        usr_content_wrapper_divs = self.fb_link_parser.find_user_content_wrapper_divs(soup)
+        if not usr_content_wrapper_divs:
+            # Public FB group post
+            divs_wo_class = self.fb_link_parser.find_divs_with_empty_class(soup)
+            links = []
+            for div in divs_wo_class:
+                links.extend(FacebookLinkParser.find_links_in_div(div))
+            links = self.fb_link_parser.filter_links(links)
+            if links:
                 return links
-            else:
-                # TODO implement?
-                pass
+            links = self.fb_link_parser.find_links_in_html_comments(url, soup)
+            if links:
+                return links
+
+            # Fall back to JS rendering
+            LOG.info("Falling back to Javascript-rendered webpage scraping for URL '%s'", url)
+            soup = self.js_renderer.render_with_javascript(url)
+            links = self.fb_link_parser.find_links_with_js_rendering(soup, url)
+            return links
+        else:
+            # TODO implement?
+            return []
+
+    @staticmethod
+    def _determine_post_type(url):
+        resp = requests.get(url, headers=Facebook.HEADERS)
+        soup = BeautifulSoupHelper.create_bs(resp.text)
+        return soup
 
 
 @auto_str
