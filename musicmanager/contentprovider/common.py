@@ -1,17 +1,21 @@
+import logging
 from abc import ABC, abstractmethod
-from typing import List, Tuple, Any, Set, Iterable
+from enum import Enum
+from typing import Tuple, Set, Iterable
 
 from bs4 import BeautifulSoup
-from requests_html import HTMLSession
 from requests import Response
+from requests_html import HTMLSession
 
-from musicmanager.commands.addnewentitiestosheet.add_new_music_entity_cmd import JavaScriptRenderer
 from musicmanager.common import Duration
-import logging
 
-from musicmanager.contentprovider.facebook import create_bs, FacebookSelenium
 
 LOG = logging.getLogger(__name__)
+BS4_HTML_PARSER = "html.parser"
+
+
+def create_bs(html) -> BeautifulSoup:
+    return BeautifulSoup(html, features=BS4_HTML_PARSER)
 
 
 class ContentProviderAbs(ABC):
@@ -36,8 +40,13 @@ class ContentProviderAbs(ABC):
         pass
 
 
+class JavaScriptRenderer(Enum):
+    REQUESTS_HTML = 'requests-html'
+    SELENIUM = 'selenium'
+
+
 class JSRenderer:
-    def __init__(self, js_renderer_type: JavaScriptRenderer, selenium: FacebookSelenium):
+    def __init__(self, js_renderer_type: JavaScriptRenderer, selenium):
         self.use_requests_html = False
         self.use_selenium = False
         self.fb_selenium = selenium

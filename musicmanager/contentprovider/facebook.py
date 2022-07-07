@@ -16,17 +16,13 @@ from selenium.webdriver.support.wait import WebDriverWait
 from string_utils import auto_str
 
 from musicmanager.common import Duration
-from musicmanager.contentprovider.common import ContentProviderAbs, JSRenderer
+from musicmanager.contentprovider.common import ContentProviderAbs, JSRenderer, create_bs
 
-BS4_HTML_PARSER = "html.parser"
 FACEBOOK_URL_FRAGMENT1 = "facebook.com"
 FACEBOOK_REDIRECT_LINK = "https://l.facebook.com/l.php"
 LOG = logging.getLogger(__name__)
 from bs4 import BeautifulSoup, Comment
 
-
-def create_bs(html) -> BeautifulSoup:
-    return BeautifulSoup(html, features=BS4_HTML_PARSER)
 
 
 @auto_str

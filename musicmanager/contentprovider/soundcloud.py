@@ -1,4 +1,3 @@
-import logging
 from typing import Tuple, Iterable
 
 from string_utils import auto_str

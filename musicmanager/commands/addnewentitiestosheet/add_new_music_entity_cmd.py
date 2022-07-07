@@ -17,6 +17,7 @@ from musicmanager.commands.addnewentitiestosheet.parser import MusicEntityInputF
 from musicmanager.commands_common import CommandType, CommandAbs
 from musicmanager.constants import LocalDirs
 from musicmanager.contentprovider.beatport import Beatport
+from musicmanager.contentprovider.common import JavaScriptRenderer
 from musicmanager.contentprovider.facebook import Facebook
 from musicmanager.contentprovider.soundcloud import SoundCloud
 from musicmanager.contentprovider.youtube import Youtube
@@ -30,11 +31,6 @@ LOG = logging.getLogger(__name__)
 class OperationMode(Enum):
     GSHEET = "GSHEET"
     DRY_RUN = "DRYRUN"
-
-
-class JavaScriptRenderer(Enum):
-    REQUESTS_HTML = 'requests-html'
-    SELENIUM = 'selenium'
 
 
 class AddNewMusicEntityCommandConfig:
