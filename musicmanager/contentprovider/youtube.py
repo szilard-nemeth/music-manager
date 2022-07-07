@@ -16,7 +16,8 @@ LOG = logging.getLogger(__name__)
 
 @auto_str
 class Youtube(ContentProviderAbs):
-    def url_matchers(self) -> Iterable[str]:
+    @classmethod
+    def url_matchers(cls) -> Iterable[str]:
         return [YOUTUBE_URL_1, YOUTUBE_URL_2]
 
     def is_media_provider(self):

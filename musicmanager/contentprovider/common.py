@@ -37,8 +37,9 @@ class ContentProviderAbs(ABC):
     def is_media_provider(self):
         pass
 
+    @classmethod
     @abstractmethod
-    def url_matchers(self) -> Iterable[str]:
+    def url_matchers(cls) -> Iterable[str]:
         pass
 
 

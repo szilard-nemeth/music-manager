@@ -16,7 +16,7 @@ from selenium.webdriver.support.wait import WebDriverWait
 from string_utils import auto_str
 
 from musicmanager.common import Duration
-from musicmanager.contentprovider.common import ContentProviderAbs, JSRenderer, BeautifulSoupHelper
+from musicmanager.contentprovider.common import ContentProviderAbs, BeautifulSoupHelper
 
 FACEBOOK_URL_FRAGMENT1 = "facebook.com"
 FACEBOOK_REDIRECT_LINK = "https://l.facebook.com/l.php"
@@ -30,13 +30,14 @@ class Facebook(ContentProviderAbs):
         "accept-language": "en-US,en;q=0.9"
     }
 
-    def __init__(self, config):
+    def __init__(self, config, js_renderer, fb_selenium, fb_link_parser):
         self.config = config
-        self.fb_selenium = FacebookSelenium(self.config)
-        self.urls_to_match = None
-        self.js_renderer = JSRenderer(self.config.js_renderer, self.fb_selenium)
+        self.js_renderer = js_renderer
+        self.fb_selenium = fb_selenium
+        self.fb_link_parser = fb_link_parser
 
-    def url_matchers(self) -> Iterable[str]:
+    @classmethod
+    def url_matchers(cls) -> Iterable[str]:
         return [FACEBOOK_REDIRECT_LINK]
 
     def is_media_provider(self):
@@ -74,14 +75,14 @@ class Facebook(ContentProviderAbs):
         if private_post:
             # Private FB post content
             links = self.fb_selenium.load_links_from_private_content(url)
-            return FacebookLinkParser.filter_links(links, self.urls_to_match)
+            return self.filter_links(links)
         elif private_group_post:
             # Private FB group content
             if private_group_soup:
                 links = self.fb_selenium.load_links_from_private_content_soup(private_group_soup)
             else:
                 links = self.fb_selenium.load_links_from_private_content(url)
-            return FacebookLinkParser.filter_links(links, self.urls_to_match)
+            return self.fb_link_parser.filter_links(links)
         else:
             # Public FB post from a user
             # TODO Move these to FacebookLinkParser?
@@ -92,12 +93,13 @@ class Facebook(ContentProviderAbs):
                 links = []
                 for div in divs_wo_class:
                     links.extend(FacebookLinkParser.find_links_in_div(div))
-                links = FacebookLinkParser.filter_links(links, self.urls_to_match)
+                links = self.fb_link_parser.filter_links(links)
                 if not links:
-                    links = FacebookLinkParser.find_links_in_html_comments(url, soup)
+                    links = self.fb_link_parser.find_links_in_html_comments(url, soup)
                     if not links:
                         LOG.info("Falling back to Javascript-rendered webpage scraping for URL '%s'", url)
-                        links = FacebookLinkParser.find_links_with_js_rendering(self.js_renderer, self.urls_to_match, url)
+                        soup = self.js_renderer.render_with_javascript(url)
+                        links = self.fb_link_parser.find_links_with_js_rendering(soup, url)
                 return links
             else:
                 # TODO implement?
@@ -131,8 +133,9 @@ class FacebookSelenium:
     COOKIE_BUTTON_TEXT = "Allow essential and optional cookies"
     COOKIE_ACCEPT_BUTTON_XPATH = '//button[text()="' + COOKIE_BUTTON_TEXT + '"]'
 
-    def __init__(self, config):
+    def __init__(self, config, fb_link_parser):
         self.config = config
+        self.fb_link_parser = fb_link_parser
         self.chrome_options = None
         self.driver = None
         self.logged_in = False
@@ -140,12 +143,11 @@ class FacebookSelenium:
     def load_links_from_private_content(self, url: str):
         LOG.info("Loading private Facebook post content...")
         soup = self.load_url_as_soup(url)
-        return FacebookLinkParser.find_links_in_soup(soup)
+        return self.fb_link_parser.find_links_in_soup(soup)
 
-    @staticmethod
-    def load_links_from_private_content_soup(soup: BeautifulSoup):
+    def load_links_from_private_content_soup(self, soup: BeautifulSoup):
         LOG.info("Loading private Facebook post content...")
-        return FacebookLinkParser.find_links_in_soup(soup)
+        return self.fb_link_parser.find_links_in_soup(soup)
 
     def load_url_as_soup(self, url) -> BeautifulSoup:
         self._init_webdriver()
@@ -223,6 +225,9 @@ class FacebookSelenium:
 
 
 class FacebookLinkParser:
+    def __init__(self, urls_to_match: List[str]):
+        self.urls_to_match = urls_to_match
+
     @staticmethod
     def find_links_in_soup(soup: BeautifulSoup) -> Iterable[str]:
         anchors = soup.findAll("a")
@@ -231,15 +236,14 @@ class FacebookLinkParser:
         LOG.info("Found links: %s", links)
         return links
 
-    @staticmethod
-    def filter_links(links: Iterable[str], urls_to_match: List[str], remove_fbclid=True):
+    def filter_links(self, links: Iterable[str], remove_fbclid=True):
         filtered_links = set()
         # TODO add FB redirect links to urls_to_match
         for link in links:
-            for url_to_match in urls_to_match:
+            for url_to_match in self.urls_to_match:
                 if url_to_match in link:
                     if remove_fbclid:
-                        mod_link = FacebookLinkParser.remove_fbclid(link)
+                        mod_link = self.remove_fbclid(link)
                         filtered_links.add(mod_link)
                     else:
                         filtered_links.add(link)
@@ -248,9 +252,9 @@ class FacebookLinkParser:
         final_links = set()
         for link in filtered_links:
             if FACEBOOK_REDIRECT_LINK in link:
-                unescaped_link = FacebookLinkParser._get_final_link_from_fb_redirect_link(link, orig_url="unknown")
+                unescaped_link = self._get_final_link_from_fb_redirect_link(link, orig_url="unknown")
                 if remove_fbclid:
-                    unescaped_link = FacebookLinkParser.remove_fbclid(unescaped_link)
+                    unescaped_link = self.remove_fbclid(unescaped_link)
                     final_links.add(unescaped_link)
                 else:
                     final_links.add(unescaped_link)
@@ -271,8 +275,7 @@ class FacebookLinkParser:
         u = u._replace(query=urlencode(query, True))
         return urlunparse(u)
 
-    @staticmethod
-    def find_links_in_html_comments(url: str, soup:  BeautifulSoup) -> Set[str]:
+    def find_links_in_html_comments(self, url: str, soup:  BeautifulSoup) -> Set[str]:
         # Find in comments
         # Data can be in:
         # <div class="hidden_elem">
@@ -292,7 +295,7 @@ class FacebookLinkParser:
                 orig_links = FacebookLinkParser.find_links_in_div(div)
                 fb_redirect_links = FacebookLinkParser.filter_facebook_redirect_links(orig_links)
                 for redir_link in fb_redirect_links:
-                    unescaped_link = FacebookLinkParser._get_final_link_from_fb_redirect_link(redir_link, url)
+                    unescaped_link = self._get_final_link_from_fb_redirect_link(redir_link, url)
                     found_links.add(unescaped_link)
         LOG.debug("[orig: %s] Found links: %s", url, found_links)
         return found_links
@@ -303,18 +306,16 @@ class FacebookLinkParser:
         links = [a['href'] for a in anchors]
         return links
 
-    @staticmethod
-    def find_links_with_js_rendering(renderer, urls_to_match, url):
-        soup = renderer.render_with_javascript(url)
+    def find_links_with_js_rendering(self, soup, url):
         links = FacebookLinkParser.find_links_in_soup(soup)
-        filtered_links = FacebookLinkParser.filter_links(links, urls_to_match)
+        filtered_links = self.filter_links(links)
         # filtered_links = FacebookLinkParser.filter_facebook_redirect_links(links)
         LOG.debug("[orig: %s] Found links on JS rendered page: %s", url, filtered_links)
 
         final_links = set()
         for link in filtered_links:
             if link.startswith(FACEBOOK_REDIRECT_LINK):
-                unescaped_link = FacebookLinkParser._get_final_link_from_fb_redirect_link(link, url)
+                unescaped_link = self._get_final_link_from_fb_redirect_link(link, url)
                 final_links.add(unescaped_link)
             else:
                 final_links.add(link)

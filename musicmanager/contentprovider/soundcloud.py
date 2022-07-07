@@ -10,7 +10,8 @@ SOUNDCLOUD_URL = "soundcloud.com"
 
 @auto_str
 class SoundCloud(ContentProviderAbs):
-    def url_matchers(self) -> Iterable[str]:
+    @classmethod
+    def url_matchers(cls) -> Iterable[str]:
         return [SOUNDCLOUD_URL]
 
     def is_media_provider(self):
