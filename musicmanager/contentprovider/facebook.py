@@ -16,7 +16,7 @@ from selenium.webdriver.support.wait import WebDriverWait
 from string_utils import auto_str
 
 from musicmanager.common import Duration
-from musicmanager.contentprovider.common import ContentProviderAbs, JSRenderer, create_bs
+from musicmanager.contentprovider.common import ContentProviderAbs, JSRenderer, BeautifulSoupHelper
 
 FACEBOOK_URL_FRAGMENT1 = "facebook.com"
 FACEBOOK_REDIRECT_LINK = "https://l.facebook.com/l.php"
@@ -55,7 +55,7 @@ class Facebook(ContentProviderAbs):
         # TODO Introduce new class that ties together the emitting logic: private post, private group post, public post, public group post
         LOG.info("Emitting links from provider '%s'", self)
         resp = requests.get(url, headers=Facebook.HEADERS)
-        soup = create_bs(resp.text)
+        soup = BeautifulSoupHelper.create_bs(resp.text)
 
         private_post = self._find_private_fb_post_div(soup)
         private_group_post = self._find_private_fb_group_div(soup)
@@ -149,7 +149,7 @@ class FacebookSelenium:
         else:
             LOG.debug("Current URL matches desired URL '%s', not loading again", url)
         html = self.driver.page_source
-        return create_bs(html)
+        return BeautifulSoupHelper.create_bs(html)
 
     def _login(self):
         self.driver.get(self.FACEBOOK_COM)
@@ -277,7 +277,7 @@ class FacebookLinkParser:
         found_links = set()
         comments = soup.find_all(text=lambda text: isinstance(text, Comment))
         for comment in comments:
-            comment_soup = create_bs(comment)
+            comment_soup = BeautifulSoupHelper.create_bs(comment)
             divs = comment_soup.find_all('div', attrs={'class': 'userContentWrapper'})
             for div in divs:
                 anchors = div.findAll('a')

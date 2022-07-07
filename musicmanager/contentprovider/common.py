@@ -14,8 +14,10 @@ LOG = logging.getLogger(__name__)
 BS4_HTML_PARSER = "html.parser"
 
 
-def create_bs(html) -> BeautifulSoup:
-    return BeautifulSoup(html, features=BS4_HTML_PARSER)
+class BeautifulSoupHelper:
+    @staticmethod
+    def create_bs(html) -> BeautifulSoup:
+        return BeautifulSoup(html, features=BS4_HTML_PARSER)
 
 
 class ContentProviderAbs(ABC):
@@ -59,7 +61,7 @@ class JSRenderer:
     def render_with_javascript(self, url) -> BeautifulSoup:
         if self.use_requests_html:
             html_content = JSRenderer._render_with_requests_html(url)
-            return create_bs(html_content)
+            return BeautifulSoupHelper.create_bs(html_content)
         elif self.use_selenium:
             return self.fb_selenium.load_url_as_soup(url)
 
