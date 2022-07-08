@@ -49,6 +49,7 @@ class FacebookLinkEmitter:
     def emit_links(self, url) -> Dict[str, None]:
         resp = requests.get(url, headers=Facebook.HEADERS)
         soup = BeautifulSoupHelper.create_bs(resp.text)
+        # TODO This is wrong: Selenium will pop up for public Facebook content as well!
         ptws = self._determine_if_private(soup, url)
         if ptws.type in [FacebookPostType.PUBLIC_POST, FacebookPostType.PUBLIC]:
             return self._parse_links_from_public_post(ptws.soup, url)
@@ -291,8 +292,9 @@ class FacebookSelenium:
 
 
 class FacebookLinkParser:
-    def __init__(self, urls_to_match: List[str]):
+    def __init__(self, urls_to_match: List[str], fb_redirect_link_limit: int):
         self.urls_to_match = urls_to_match
+        self.fb_redirect_link_limit = fb_redirect_link_limit
 
     @staticmethod
     def find_links_in_soup(soup: BeautifulSoup) -> List[str]:
@@ -325,6 +327,13 @@ class FacebookLinkParser:
                         filtered_links[link] = None
                     break
 
+        fb_redirect_links = list(filter(lambda l: FACEBOOK_REDIRECT_LINK in l, filtered_links))
+        if len(fb_redirect_links) > self.fb_redirect_link_limit:
+            LOG.error("Found %d Facebook redirect links. Allowed limit is: %d", len(fb_redirect_links), self.fb_redirect_link_limit)
+            return {}
+
+        # TODO Facebook redirect links could resolve URLs like 'https://media0.giphy.com/media/J4yqIH28myeXRxTx56/giphy.gif?kid=be302117&ct=s&fbclid=IwAR3xJFupawFOaIpfxr_v9wnBT4DpQgWKhM28ZfYUz6Yv9Dc203_PfYFbS_E'
+        #  Run FB redirect filtering first, then the urls_to_match filtering afterwards
         # Use dict instead of set, as of Python 3.7, standard dict is preserving order: https://stackoverflow.com/a/53657523/1106893
         final_links = {}
         for link in filtered_links:

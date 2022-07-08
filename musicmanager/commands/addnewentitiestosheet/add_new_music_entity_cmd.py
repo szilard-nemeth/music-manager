@@ -39,6 +39,7 @@ class AddNewMusicEntityCommandConfig:
         self.gsheet_wrapper = None
         self.fb_password = args.fbpwd
         self.fb_username = args.fbuser
+        self.fb_redirect_link_limit = args.fb_redirect_link_limit
         self.js_renderer: JavaScriptRenderer = self._choose_js_renderer(args)
         self._validate(args, parser)
         self.duplicate_detection = args.duplicate_detection
@@ -169,6 +170,12 @@ class AddNewMusicEntityCommand(CommandAbs):
                             help='Whether to use requests-html library for JS rendering. Otherwise, Selenium will be used.',
                             required=False
                             )
+        parser.add_argument('--fb-redirect-link-limit',
+                            type=int,
+                            default=10,
+                            help='The number of maximum Facebook redirect links to handle per post. Default is 10.',
+                            required=False
+                            )
 
     @staticmethod
     def execute(args, parser=None):
@@ -227,7 +234,7 @@ class AddNewMusicEntityCommand(CommandAbs):
     def _create_music_entity_creator(self):
         content_provider_classes = [Youtube, Facebook, Beatport, SoundCloud, Mixcloud]
         urls_to_match = [m for cp in content_provider_classes for m in cp.url_matchers()]
-        fb_link_parser = FacebookLinkParser(urls_to_match)
+        fb_link_parser = FacebookLinkParser(urls_to_match, self.config.fb_redirect_link_limit)
         fb_selenium = FacebookSelenium(self.config, fb_link_parser)
         js_renderer = JSRenderer(self.config.js_renderer, fb_selenium)
         facebook = Facebook(self.config, js_renderer, fb_selenium, fb_link_parser)
