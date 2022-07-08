@@ -50,7 +50,7 @@ class FacebookLinkEmitter:
         resp = requests.get(url, headers=Facebook.HEADERS)
         soup = BeautifulSoupHelper.create_bs(resp.text)
         ptws = self._determine_if_private(soup, url)
-        if ptws.type == FacebookPostType.PUBLIC_POST:
+        if ptws.type in [FacebookPostType.PUBLIC_POST, FacebookPostType.PUBLIC]:
             return self._parse_links_from_public_post(ptws.soup, url)
         elif ptws.type == FacebookPostType.PRIVATE_POST or (ptws.type == FacebookPostType.PRIVATE_POST and not ptws.soup):
             links = self.fb_selenium.load_links_from_private_content(url)
@@ -121,7 +121,8 @@ class FacebookLinkEmitter:
                     return FacebookPostTypeWithSoup(FacebookPostType.PUBLIC, soup)
                 else:
                     return FacebookPostTypeWithSoup(FacebookPostType.PRIVATE_POST, soup)
-
+            else:
+                return FacebookPostTypeWithSoup(FacebookPostType.PUBLIC, soup)
 
 @auto_str
 class Facebook(ContentProviderAbs):
