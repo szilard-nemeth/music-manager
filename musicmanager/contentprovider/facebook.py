@@ -3,7 +3,7 @@ import pickle
 import re
 from dataclasses import dataclass
 from enum import Enum
-from typing import Iterable, List
+from typing import Iterable, List, Callable
 from typing import Tuple, Set
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 
@@ -49,38 +49,50 @@ class FacebookLinkEmitter:
     def emit_links(self, url):
         resp = requests.get(url, headers=Facebook.HEADERS)
         soup = BeautifulSoupHelper.create_bs(resp.text)
-        pwt = self._determine_if_private(soup, url)
-        if pwt.type == FacebookPostType.PUBLIC_POST:
-            return self._parse_links_from_public_post(pwt.soup, url)
-        elif pwt.type == FacebookPostType.PRIVATE_POST:
+        ptws = self._determine_if_private(soup, url)
+        if ptws.type == FacebookPostType.PUBLIC_POST:
+            return self._parse_links_from_public_post(ptws.soup, url)
+        elif ptws.type == FacebookPostType.PRIVATE_POST:
             links = self.fb_selenium.load_links_from_private_content(url)
             return self.fb_link_parser.filter_links(links)
-        elif pwt.type == FacebookPostType.PRIVATE_GROUP_POST:
-            if pwt.soup:
-                links = self.fb_selenium.load_links_from_private_content_soup(pwt.soup)
+        elif ptws.type == FacebookPostType.PRIVATE_GROUP_POST:
+            if ptws.soup:
+                links = self.fb_selenium.load_links_from_private_content_soup(ptws.soup)
             else:
                 links = self.fb_selenium.load_links_from_private_content(url)
             return self.fb_link_parser.filter_links(links)
 
     def _parse_links_from_public_post(self, soup, url):
-        usr_content_wrapper_divs = self.fb_link_parser.find_user_content_wrapper_divs(soup)
-        if usr_content_wrapper_divs:
-            return []
-        divs_wo_class = self.fb_link_parser.find_divs_with_empty_class(soup)
-        links = []
-        for div in divs_wo_class:
-            links.extend(FacebookLinkParser.find_links_in_div(div))
-        links = self.fb_link_parser.filter_links(links)
-        if links:
-            return links
-        links = self.fb_link_parser.find_links_in_html_comments(url, soup)
-        if links:
-            return links
-        # Fall back to JS rendering
-        LOG.info("Falling back to Javascript-rendered webpage scraping for URL '%s'", url)
-        soup = self.js_renderer.render_with_javascript(url)
-        links = self.fb_link_parser.find_links_with_js_rendering(soup, url)
-        return links
+        def f1(parser, url, soup):
+            # TODO not implemented yet
+            usr_content_wrapper_divs = parser.find_user_content_wrapper_divs(soup)
+            if usr_content_wrapper_divs:
+                return []
+            return None
+
+        def f2(parser, url, soup):
+            divs_wo_class = parser.find_divs_with_empty_class(soup)
+            links = []
+            for div in divs_wo_class:
+                links.extend(FacebookLinkParser.find_links_in_div(div))
+            return parser.filter_links(links)
+
+        def f3(parser, url, soup):
+            return parser.find_links_in_html_comments(url, soup)
+
+        def f4(parser, url, soup):
+            # Fall back to JS rendering
+            LOG.info("Falling back to Javascript-rendered webpage scraping for URL '%s'", url)
+            soup = parser.render_with_javascript(url)
+            return parser.find_links_with_js_rendering(soup, url)
+
+        return self._chained_func_calls([f1, f2, f3, f4], url, soup)
+
+    def _chained_func_calls(self, f_calls: List[Callable], url, soup):
+        for f_call in f_calls:
+            ret = f_call(self.fb_link_parser, url, soup)
+            if ret is not None:
+                return ret
 
     def _determine_if_private(self, soup, url) -> FacebookPostTypeWithSoup:
         private_post = self.fb_link_parser.find_private_fb_post_div(soup)
