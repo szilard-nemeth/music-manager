@@ -1,6 +1,6 @@
 import logging
 from enum import Enum
-from typing import List, Tuple, Set, Iterable
+from typing import List, Tuple, Set, Iterable, Dict
 
 from string_utils import auto_str
 
@@ -43,8 +43,8 @@ class MusicEntityCreator:
             for duration_tup in durations:
                 entity_type = MusicEntityCreator._determine_entity_type(duration_tup[0])
                 entity = MusicEntity(obj, duration_tup[0], duration_tup[1], entity_type)
-                LOG.debug("Created music entity: %s", entity)
                 music_entities.append(entity)
+        LOG.debug("Created music entities: %s, ", music_entities)
         return music_entities
 
     @staticmethod
@@ -71,9 +71,11 @@ class MusicEntityCreator:
                 if provider.can_handle_url(link):
                     link_handled = True
                     if not provider.is_media_provider() and allow_emit:
-                        emitted_links: Set[str] = provider.emit_links(link)
+                        emitted_links: Dict[str, None] = provider.emit_links(link)
                         LOG.debug("Emitted links: %s", emitted_links)
                         res = self.check_links_against_providers(emitted_links, allow_emit=False)
+                        if not res:
+                            LOG.error("No valid links found for URL '%s'", link)
                         all_links.extend(res)
                     else:
                         all_links.append(provider.determine_duration_by_url(link))

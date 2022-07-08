@@ -1,7 +1,7 @@
 import logging
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Tuple, Set, Iterable
+from typing import Tuple, Set, Iterable, Dict
 
 from bs4 import BeautifulSoup
 from requests import Response
@@ -26,7 +26,7 @@ class ContentProviderAbs(ABC):
         pass
 
     @abstractmethod
-    def emit_links(self, url) -> Set[str]:
+    def emit_links(self, url) -> Dict[str, None]:
         pass
 
     @abstractmethod

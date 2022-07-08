@@ -3,7 +3,7 @@ import pickle
 import re
 from dataclasses import dataclass
 from enum import Enum
-from typing import Iterable, List, Callable
+from typing import Iterable, List, Callable, Dict, Any
 from typing import Tuple, Set
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 
@@ -46,38 +46,38 @@ class FacebookLinkEmitter:
         self.fb_selenium = fb_selenium
         self.js_renderer = js_renderer
 
-    def emit_links(self, url):
+    def emit_links(self, url) -> Dict[str, None]:
         resp = requests.get(url, headers=Facebook.HEADERS)
         soup = BeautifulSoupHelper.create_bs(resp.text)
         ptws = self._determine_if_private(soup, url)
         if ptws.type in [FacebookPostType.PUBLIC_POST, FacebookPostType.PUBLIC]:
             return self._parse_links_from_public_post(ptws.soup, url)
         elif ptws.type == FacebookPostType.PRIVATE_POST or (ptws.type == FacebookPostType.PRIVATE_POST and not ptws.soup):
-            links = self.fb_selenium.load_links_from_private_content(url)
+            links: List[str] = self.fb_selenium.load_links_from_private_content(url)
             return self.fb_link_parser.filter_links(links)
         elif ptws.type == FacebookPostType.PRIVATE_GROUP_POST:
-            links = self.fb_selenium.load_links_from_private_content_soup(ptws.soup)
+            links: List[str] = self.fb_selenium.load_links_from_private_content_soup(ptws.soup)
             return self.fb_link_parser.filter_links(links)
 
-    def _parse_links_from_public_post(self, soup, url):
-        def f1(parser, url, soup):
+    def _parse_links_from_public_post(self, soup, url) -> Dict[str, None] or None:
+        def f1(parser, url, soup) -> Dict[str, None]:
             # TODO not implemented yet
             usr_content_wrapper_divs = parser.find_user_content_wrapper_divs(soup)
             if usr_content_wrapper_divs:
-                return []
+                return {}
             return None
 
-        def f2(parser, url, soup):
+        def f2(parser, url, soup) -> Dict[str, None]:
             divs_wo_class = parser.find_divs_with_empty_class(soup)
             links = []
             for div in divs_wo_class:
                 links.extend(FacebookLinkParser.find_links_in_div(div))
             return parser.filter_links(links)
 
-        def f3(parser, url, soup):
+        def f3(parser, url, soup) -> Dict[str, None]:
             return parser.find_links_in_html_comments(url, soup)
 
-        def f4(parser, url, soup):
+        def f4(parser, url, soup) -> Dict[str, None]:
             # Fall back to JS rendering
             LOG.info("Falling back to Javascript-rendered webpage scraping for URL '%s'", url)
             soup = parser.render_with_javascript(url)
@@ -85,11 +85,12 @@ class FacebookLinkEmitter:
 
         return self._chained_func_calls([f1, f2, f3, f4], url, soup)
 
-    def _chained_func_calls(self, f_calls: List[Callable], url, soup):
+    def _chained_func_calls(self, f_calls: List[Callable[[Any, str, BeautifulSoup], Dict[str, None]]], url, soup) -> Dict[str, None]:
         for f_call in f_calls:
             ret = f_call(self.fb_link_parser, url, soup)
             if ret is not None:
                 return ret
+        raise ValueError("Could not find any meaningful value from function calls: {}".format(f_calls))
 
     def _determine_if_private(self, soup, url) -> FacebookPostTypeWithSoup:
         private_post = self.fb_link_parser.find_private_fb_post_div(soup)
@@ -150,7 +151,7 @@ class Facebook(ContentProviderAbs):
     def determine_duration_by_url(self, url: str) -> Tuple[Duration, str]:
         return Duration.unknown(), url
 
-    def emit_links(self, url) -> Set[str]:
+    def emit_links(self, url) -> Dict[str, None]:
         # TODO Introduce new class that ties together the emitting logic: private post, private group post, public post, public group post
         LOG.info("Emitting links from provider '%s'", self)
         return self.fb_link_emitter.emit_links(url)
@@ -185,13 +186,14 @@ class FacebookSelenium:
         self.chrome_options = None
         self.driver = None
         self.logged_in = False
+        self._init_logging()
 
-    def load_links_from_private_content(self, url: str):
+    def load_links_from_private_content(self, url: str) -> List[str]:
         LOG.info("Loading private Facebook post content...")
         soup = self.load_url_as_soup(url)
         return self.fb_link_parser.find_links_in_soup(soup)
 
-    def load_links_from_private_content_soup(self, soup: BeautifulSoup):
+    def load_links_from_private_content_soup(self, soup: BeautifulSoup) -> List[str]:
         LOG.info("Loading private Facebook post content...")
         return self.fb_link_parser.find_links_in_soup(soup)
 
@@ -283,43 +285,59 @@ class FacebookSelenium:
         for cookie in cookies:
             driver.add_cookie(cookie)
 
+    def _init_logging(self):
+        import logging
+        from selenium.webdriver.remote.remote_connection import LOGGER
+        LOGGER.setLevel(logging.INFO)
+
 
 class FacebookLinkParser:
     def __init__(self, urls_to_match: List[str]):
         self.urls_to_match = urls_to_match
 
     @staticmethod
-    def find_links_in_soup(soup: BeautifulSoup) -> Iterable[str]:
+    def find_links_in_soup(soup: BeautifulSoup) -> List[str]:
         anchors = soup.findAll("a")
         filtered_anchors = list(filter(lambda a: 'href' in a.attrs, anchors))
-        links = set([a['href'] for a in filtered_anchors])
+        links = [a['href'] for a in filtered_anchors]
         LOG.info("Found links: %s", links)
         return links
 
-    def filter_links(self, links: Iterable[str], remove_fbclid=True):
-        filtered_links = set()
+    def filter_links(self, links: List[str], remove_fbclid=True) -> Dict[str, None]:
+        """
+
+        Args:
+            links:
+            remove_fbclid:
+
+        Returns:
+            List of links, de-duplicated. The order is important as client classes could limit the number of links later.
+        """
+        # Use dict instead of set, as of Python 3.7, standard dict is preserving order: https://stackoverflow.com/a/53657523/1106893
+        filtered_links = {}
         # TODO add FB redirect links to urls_to_match
         for link in links:
             for url_to_match in self.urls_to_match:
                 if url_to_match in link:
                     if remove_fbclid:
                         mod_link = self.remove_fbclid(link)
-                        filtered_links.add(mod_link)
+                        filtered_links[mod_link] = None
                     else:
-                        filtered_links.add(link)
+                        filtered_links[link] = None
                     break
-        
-        final_links = set()
+
+        # Use dict instead of set, as of Python 3.7, standard dict is preserving order: https://stackoverflow.com/a/53657523/1106893
+        final_links = {}
         for link in filtered_links:
             if FACEBOOK_REDIRECT_LINK in link:
                 unescaped_link = self._get_final_link_from_fb_redirect_link(link, orig_url="unknown")
                 if remove_fbclid:
                     unescaped_link = self.remove_fbclid(unescaped_link)
-                    final_links.add(unescaped_link)
+                    final_links[unescaped_link] = None
                 else:
-                    final_links.add(unescaped_link)
+                    final_links[unescaped_link] = None
             else:
-                final_links.add(link)
+                final_links[link] = None
         return final_links
 
     @staticmethod
@@ -335,7 +353,7 @@ class FacebookLinkParser:
         u = u._replace(query=urlencode(query, True))
         return urlunparse(u)
 
-    def find_links_in_html_comments(self, url: str, soup:  BeautifulSoup) -> Set[str]:
+    def find_links_in_html_comments(self, url: str, soup:  BeautifulSoup) -> Dict[str, None]:
         # Find in comments
         # Data can be in:
         # <div class="hidden_elem">
@@ -345,7 +363,9 @@ class FacebookLinkParser:
         #          <div>
         #          </div>
         #          <div class="_5pcr userContentWrapper"
-        found_links = set()
+
+        # Use dict instead of set, as of Python 3.7, standard dict is preserving order: https://stackoverflow.com/a/53657523/1106893
+        found_links = {}
         comments = soup.find_all(text=lambda text: isinstance(text, Comment))
         for comment in comments:
             comment_soup = BeautifulSoupHelper.create_bs(comment)
@@ -356,7 +376,7 @@ class FacebookLinkParser:
                 fb_redirect_links = FacebookLinkParser.filter_facebook_redirect_links(orig_links)
                 for redir_link in fb_redirect_links:
                     unescaped_link = self._get_final_link_from_fb_redirect_link(redir_link, url)
-                    found_links.add(unescaped_link)
+                    found_links[unescaped_link] = None
         LOG.debug("[orig: %s] Found links: %s", url, found_links)
         return found_links
 
@@ -366,19 +386,20 @@ class FacebookLinkParser:
         links = [a['href'] for a in anchors]
         return links
 
-    def find_links_with_js_rendering(self, soup, url):
-        links = FacebookLinkParser.find_links_in_soup(soup)
+    def find_links_with_js_rendering(self, soup, url) -> Dict[str, None]:
+        links: List[str] = FacebookLinkParser.find_links_in_soup(soup)
         filtered_links = self.filter_links(links)
         # filtered_links = FacebookLinkParser.filter_facebook_redirect_links(links)
         LOG.debug("[orig: %s] Found links on JS rendered page: %s", url, filtered_links)
 
-        final_links = set()
+        # Use dict instead of set, as of Python 3.7, standard dict is preserving order: https://stackoverflow.com/a/53657523/1106893
+        final_links = {}
         for link in filtered_links:
             if link.startswith(FACEBOOK_REDIRECT_LINK):
                 unescaped_link = self._get_final_link_from_fb_redirect_link(link, url)
-                final_links.add(unescaped_link)
+                final_links[unescaped_link] = None
             else:
-                final_links.add(link)
+                final_links[link] = None
         return final_links
 
     @staticmethod
