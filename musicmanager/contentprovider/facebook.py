@@ -382,7 +382,10 @@ class FacebookLinkParser:
     @staticmethod
     def find_links_in_div(div: Tag):
         anchors = div.findAll('a')
-        links = [a['href'] for a in anchors]
+        # TODO duplicated code fragment
+        filtered_anchors = list(filter(lambda a: 'href' in a.attrs, anchors))
+        links = [a['href'] for a in filtered_anchors]
+        LOG.info("Found links: %s", links)
         return links
 
     def find_links_with_js_rendering(self, soup, url) -> Dict[str, None]:
