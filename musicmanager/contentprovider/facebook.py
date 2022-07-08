@@ -216,7 +216,6 @@ class FacebookSelenium:
                                  ignored_exceptions=[NoSuchElementException, ElementNotVisibleException,
                                                      ElementNotSelectableException])
             success = wait.until(expected_conditions.all_of(
-                expected_conditions.element_to_be_clickable((By.XPATH, self.LIKE_BUTTON_XPATH)),
                 expected_conditions.element_to_be_clickable((By.XPATH, self.COMMENT_BUTTON_XPATH))))
         except TimeoutException as e:
             raise e
