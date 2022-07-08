@@ -121,30 +121,29 @@ class MusicEntityCreator:
         return entity_type
 
     def check_links_against_providers(self, entities: IntermediateMusicEntities, links: Iterable[str], src_url: str, allow_emit=False) -> IntermediateMusicEntities:
-        for link in links:
+        for url in links:
             link_handled = False
             for provider in self.content_providers:
-                LOG.debug("Checking if provider '%s' can handle link: %s", provider, link)
-                if provider.can_handle_url(link):
+                LOG.debug("Checking if provider '%s' can handle link: %s", provider, url)
+                if provider.can_handle_url(url):
                     link_handled = True
                     if not provider.is_media_provider() and allow_emit:
-                        emitted_links: Dict[str, None] = provider.emit_links(link)
+                        emitted_links: Dict[str, None] = provider.emit_links(url)
                         LOG.debug("Emitted links: %s", emitted_links)
                         for em_link in emitted_links.copy():
                             resolved_url = URLResolutionServices.resolve_url_with_services(em_link)
                             if resolved_url:
                                 emitted_links[resolved_url] = None
                                 del emitted_links[em_link]
-                        res: IntermediateMusicEntities = self.check_links_against_providers(entities, emitted_links, src_url=link, allow_emit=False)
+                        res: IntermediateMusicEntities = self.check_links_against_providers(entities, emitted_links, src_url=url, allow_emit=False)
                         if not res.entities:
-                            LOG.error("No valid links found for URL '%s'", link)
-                        entities.extend(res)
+                            LOG.error("No valid links found for URL '%s'", url)
                     else:
-                        entity: IntermediateMusicEntity = provider.determine_duration_by_url(link)
+                        entity: IntermediateMusicEntity = provider.determine_duration_by_url(url)
                         entity.src_url = src_url
                         entities.add(entity)
 
             if not link_handled:
                 # TODO Make a CLI option for this whether to store unknown links
-                LOG.error("Found link that none of the providers can handle: %s", link)
+                LOG.error("Found link that none of the providers can handle: %s", url)
         return entities
