@@ -19,6 +19,7 @@ from musicmanager.constants import LocalDirs
 from musicmanager.contentprovider.beatport import Beatport
 from musicmanager.contentprovider.common import JavaScriptRenderer, JSRenderer
 from musicmanager.contentprovider.facebook import Facebook, FacebookLinkParser, FacebookSelenium
+from musicmanager.contentprovider.mixcloud import Mixcloud
 from musicmanager.contentprovider.soundcloud import SoundCloud
 from musicmanager.contentprovider.youtube import Youtube
 from musicmanager.statistics import RowStats
@@ -224,14 +225,14 @@ class AddNewMusicEntityCommand(CommandAbs):
         return col_indices_by_fields
 
     def _create_music_entity_creator(self):
-        content_provider_classes = [Youtube, Facebook, Beatport, SoundCloud]
+        content_provider_classes = [Youtube, Facebook, Beatport, SoundCloud, Mixcloud]
         urls_to_match = [m for cp in content_provider_classes for m in cp.url_matchers()]
         fb_link_parser = FacebookLinkParser(urls_to_match)
         fb_selenium = FacebookSelenium(self.config, fb_link_parser)
         js_renderer = JSRenderer(self.config.js_renderer, fb_selenium)
         facebook = Facebook(self.config, js_renderer, fb_selenium, fb_link_parser)
 
-        content_providers = [Youtube(), facebook, Beatport(), SoundCloud()]
+        content_providers = [Youtube(), facebook, Beatport(), SoundCloud(), Mixcloud()]
         music_entity_creator = MusicEntityCreator(content_providers)
         return music_entity_creator
 
