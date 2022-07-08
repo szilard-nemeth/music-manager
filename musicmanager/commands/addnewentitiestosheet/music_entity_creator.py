@@ -4,8 +4,9 @@ from typing import List, Tuple, Set, Iterable, Dict
 
 from string_utils import auto_str
 
-from musicmanager.common import Duration
+from musicmanager.common import Duration, CLI_LOG
 from musicmanager.contentprovider.common import ContentProviderAbs
+from musicmanager.services.services import URLResolutionServices
 
 LOG = logging.getLogger(__name__)
 
@@ -44,6 +45,7 @@ class MusicEntityCreator:
                 entity_type = MusicEntityCreator._determine_entity_type(duration_tup[0])
                 entity = MusicEntity(obj, duration_tup[0], duration_tup[1], entity_type)
                 music_entities.append(entity)
+                CLI_LOG.info("Found links for: %s: %s", entity.original_url, entity.url)
         LOG.debug("Created music entities: %s, ", music_entities)
         return music_entities
 
@@ -73,6 +75,11 @@ class MusicEntityCreator:
                     if not provider.is_media_provider() and allow_emit:
                         emitted_links: Dict[str, None] = provider.emit_links(link)
                         LOG.debug("Emitted links: %s", emitted_links)
+                        for em_link in emitted_links.copy():
+                            resolved_url = URLResolutionServices.resolve_url_with_services(em_link)
+                            if resolved_url:
+                                emitted_links[resolved_url] = None
+                                del emitted_links[em_link]
                         res = self.check_links_against_providers(emitted_links, allow_emit=False)
                         if not res:
                             LOG.error("No valid links found for URL '%s'", link)

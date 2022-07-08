@@ -1,6 +1,10 @@
 from dataclasses import dataclass
 from enum import Enum
 
+from logging_setup import SimpleLoggingSetup
+
+CLI_LOG = SimpleLoggingSetup.create_command_logger("cli")
+
 
 class MusicManagerEnvVar(Enum):
     PROJECT_DETERMINATION_STRATEGY = "PROJECT_DETERMINATION_STRATEGY"
