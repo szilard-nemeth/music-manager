@@ -52,14 +52,11 @@ class FacebookLinkEmitter:
         ptws = self._determine_if_private(soup, url)
         if ptws.type == FacebookPostType.PUBLIC_POST:
             return self._parse_links_from_public_post(ptws.soup, url)
-        elif ptws.type == FacebookPostType.PRIVATE_POST:
+        elif ptws.type == FacebookPostType.PRIVATE_POST or (ptws.type == FacebookPostType.PRIVATE_POST and not ptws.soup):
             links = self.fb_selenium.load_links_from_private_content(url)
             return self.fb_link_parser.filter_links(links)
         elif ptws.type == FacebookPostType.PRIVATE_GROUP_POST:
-            if ptws.soup:
-                links = self.fb_selenium.load_links_from_private_content_soup(ptws.soup)
-            else:
-                links = self.fb_selenium.load_links_from_private_content(url)
+            links = self.fb_selenium.load_links_from_private_content_soup(ptws.soup)
             return self.fb_link_parser.filter_links(links)
 
     def _parse_links_from_public_post(self, soup, url):
