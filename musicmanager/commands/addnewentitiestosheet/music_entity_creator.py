@@ -1,11 +1,11 @@
 import logging
+from dataclasses import dataclass, field
 from enum import Enum
-from typing import List, Tuple, Set, Iterable, Dict
+from typing import List, Tuple, Set, Iterable, Dict, Any
 
 from string_utils import auto_str
 
 from musicmanager.common import Duration, CLI_LOG
-from musicmanager.contentprovider.common import ContentProviderAbs
 from musicmanager.services.services import URLResolutionServices
 
 LOG = logging.getLogger(__name__)
@@ -19,9 +19,8 @@ class MusicEntityType(Enum):
 
 @auto_str
 class MusicEntity:
-    def __init__(self, data, duration: Duration, url: str, entity_type: MusicEntityType):
+    def __init__(self, duration: Duration, url: str, entity_type: MusicEntityType):
         self.url = url
-        self.data = data
         self.duration: Duration = duration
         self.entity_type = entity_type
 
@@ -31,23 +30,80 @@ class MusicEntity:
         return MusicEntityCreator._get_links_of_parsed_objs(self.data)
 
 
+@dataclass
+class GroupedMusicEntity:
+    data: Any
+    source_urls: Iterable[str]
+    entities: List[MusicEntity] = field(default_factory=list)
+
+    def add(self, entity):
+        self.entities.append(entity)
+
+
+@dataclass
+class IntermediateMusicEntity:
+    duration: Duration
+    url: str
+    src_url: str = None
+
+
+@dataclass
+class IntermediateMusicEntities:
+    source_urls: Iterable[str]
+    entities: List[IntermediateMusicEntity] = field(default_factory=list)
+
+    def __post_init__(self):
+        self._index = 0
+
+    def extend(self, other):
+        self.entities.extend(other.entities)
+
+    def add(self, entity):
+        self.entities.append(entity)
+
+    def __len__(self):
+        return self.entities
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        if self._index == len(self.entities):
+            raise StopIteration
+        result = self.entities[self._index]
+        self._index += 1
+        return result
+
+
 class MusicEntityCreator:
-    def __init__(self, content_providers: List[ContentProviderAbs]):
+    def __init__(self, content_providers):
         self.content_providers = content_providers
 
-    def create_music_entities(self, parsed_objs):
-        music_entities = []
+    def create_music_entities(self, parsed_objs) -> List[GroupedMusicEntity]:
+        result: List[GroupedMusicEntity] = []
         for obj in parsed_objs:
-            links = MusicEntityCreator._get_links_of_parsed_objs(obj)
-            LOG.info("Found links from source file: %s", links)
-            durations: List[Tuple[Duration, str]] = self.check_links_against_providers(links, allow_emit=True)
-            for duration_tup in durations:
-                entity_type = MusicEntityCreator._determine_entity_type(duration_tup[0])
-                entity = MusicEntity(obj, duration_tup[0], duration_tup[1], entity_type)
-                music_entities.append(entity)
-                CLI_LOG.info("Found links for: %s: %s", entity.original_url, entity.url)
-        LOG.debug("Created music entities: %s, ", music_entities)
-        return music_entities
+            src_urls = MusicEntityCreator._get_links_of_parsed_objs(obj)
+            LOG.info("Found links from source file: %s", src_urls)
+            entities: IntermediateMusicEntities = IntermediateMusicEntities(src_urls)
+            intermediate_entities: IntermediateMusicEntities = self.check_links_against_providers(entities, src_urls, src_url="unknown", allow_emit=True)
+            grouped_entity = MusicEntityCreator.create_from_intermediate_entities(obj, intermediate_entities)
+            result.append(grouped_entity)
+        LOG.debug("Created grouped music entities: %s", result)
+        return result
+
+    @staticmethod
+    def create_from_intermediate_entities(obj, intermediate_entities: IntermediateMusicEntities) -> GroupedMusicEntity:
+        src_urls = MusicEntityCreator._get_links_of_parsed_objs(obj)
+        if not intermediate_entities.entities:
+            CLI_LOG.info("Found links for: %s: %s", src_urls, [])
+
+        grouped_entity = GroupedMusicEntity(obj, src_urls)
+        for i_entity in intermediate_entities:
+            entity_type = MusicEntityCreator._determine_entity_type(i_entity.duration)
+            entity = MusicEntity(i_entity.duration, i_entity.url, entity_type)
+            grouped_entity.add(entity)
+            CLI_LOG.info("Found links for: %s: %s", grouped_entity.source_urls, entity.url)
+        return grouped_entity
 
     @staticmethod
     def _get_links_of_parsed_objs(obj):
@@ -64,8 +120,7 @@ class MusicEntityCreator:
             entity_type = MusicEntityType.MIX
         return entity_type
 
-    def check_links_against_providers(self, links: Iterable[str], allow_emit=False) -> List[Tuple[Duration, str]]:
-        all_links: List[Tuple[Duration, str]] = []
+    def check_links_against_providers(self, entities: IntermediateMusicEntities, links: Iterable[str], src_url: str, allow_emit=False) -> IntermediateMusicEntities:
         for link in links:
             link_handled = False
             for provider in self.content_providers:
@@ -80,14 +135,16 @@ class MusicEntityCreator:
                             if resolved_url:
                                 emitted_links[resolved_url] = None
                                 del emitted_links[em_link]
-                        res = self.check_links_against_providers(emitted_links, allow_emit=False)
-                        if not res:
+                        res: IntermediateMusicEntities = self.check_links_against_providers(entities, emitted_links, src_url=link, allow_emit=False)
+                        if not res.entities:
                             LOG.error("No valid links found for URL '%s'", link)
-                        all_links.extend(res)
+                        entities.extend(res)
                     else:
-                        all_links.append(provider.determine_duration_by_url(link))
+                        entity: IntermediateMusicEntity = provider.determine_duration_by_url(link)
+                        entity.src_url = src_url
+                        entities.add(entity)
 
             if not link_handled:
                 # TODO Make a CLI option for this whether to store unknown links
                 LOG.error("Found link that none of the providers can handle: %s", link)
-        return all_links
+        return entities

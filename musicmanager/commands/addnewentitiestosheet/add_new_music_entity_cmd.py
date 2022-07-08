@@ -12,7 +12,8 @@ from pythoncommons.result_printer import BasicResultPrinter
 
 import musicmanager.commands.addnewentitiestosheet.parser as p
 from musicmanager.commands.addnewentitiestosheet.config import ParserConfig, Fields
-from musicmanager.commands.addnewentitiestosheet.music_entity_creator import MusicEntityCreator, MusicEntity
+from musicmanager.commands.addnewentitiestosheet.music_entity_creator import MusicEntityCreator, MusicEntity, \
+    GroupedMusicEntity
 from musicmanager.commands.addnewentitiestosheet.parser import MusicEntityInputFileParser
 from musicmanager.commands_common import CommandType, CommandAbs
 from musicmanager.constants import LocalDirs
@@ -204,8 +205,7 @@ class AddNewMusicEntityCommand(CommandAbs):
             parsed_objs = self.filter_duplicates(objs_from_sheet, parsed_objs)
 
         music_entity_creator = self._create_music_entity_creator()
-        music_entities = music_entity_creator.create_music_entities(parsed_objs)
-
+        music_entities: List[GroupedMusicEntity] = music_entity_creator.create_music_entities(parsed_objs)
         self.rows = DataConverter.convert_data_to_rows(music_entities, parser.extended_config.fields, col_indices_by_fields)
         self._update_google_sheet(col_indices_by_fields, parser)
 
@@ -285,7 +285,7 @@ class DataConverter:
     row_stats = None
 
     @classmethod
-    def convert_data_to_rows(cls, music_entities: List[MusicEntity],
+    def convert_data_to_rows(cls, music_entities: List[GroupedMusicEntity],
                              fields_obj: Fields,
                              col_indices_by_sheet_name: Dict[str, int]) -> List[List[str]]:
         sheet_list_of_rows: List[List[str]] = []
@@ -299,7 +299,7 @@ class DataConverter:
         return sheet_list_of_rows
 
     @classmethod
-    def _convert_parsed_entity(cls, entity: MusicEntity,
+    def _convert_parsed_entity(cls, entity: GroupedMusicEntity,
                                fields_obj: Fields,
                                col_indices_by_sheet_name: Dict[str, int]) -> p.ParsedMusicEntity:
         no_of_fields = len(fields_obj.fields)
@@ -307,7 +307,7 @@ class DataConverter:
         values_by_fields: Dict[str, str] = {}
         for field in fields_obj.fields:
             col_idx = col_indices_by_sheet_name[field.entity_field.name_in_sheet]
-            # TODO Here, link should also be read from MusicEntity
+            # TODO Here, link should also be read from GroupedMusicEntity
             obj_value = Fields.safe_get_attr(entity.data, field.name)
             row[col_idx] = obj_value
             values_by_fields[field.name] = obj_value

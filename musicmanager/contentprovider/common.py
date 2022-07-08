@@ -7,6 +7,7 @@ from bs4 import BeautifulSoup
 from requests import Response
 from requests_html import HTMLSession
 
+from musicmanager.commands.addnewentitiestosheet.music_entity_creator import IntermediateMusicEntity
 from musicmanager.common import Duration
 
 
@@ -30,7 +31,7 @@ class ContentProviderAbs(ABC):
         pass
 
     @abstractmethod
-    def determine_duration_by_url(self, url: str) -> Tuple[Duration, str]:
+    def determine_duration_by_url(self, url: str) -> IntermediateMusicEntity:
         pass
 
     @abstractmethod

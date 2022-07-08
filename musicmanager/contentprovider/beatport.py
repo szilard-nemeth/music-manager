@@ -3,6 +3,7 @@ from typing import Tuple, Iterable
 
 from string_utils import auto_str
 
+from musicmanager.commands.addnewentitiestosheet.music_entity_creator import IntermediateMusicEntity
 from musicmanager.common import Duration
 from musicmanager.contentprovider.common import ContentProviderAbs
 
@@ -27,5 +28,5 @@ class Beatport(ContentProviderAbs):
     def emit_links(self, url):
         return []
 
-    def determine_duration_by_url(self, url: str) -> Tuple[Duration, str]:
-        return Duration.unknown(), url
+    def determine_duration_by_url(self, url: str) -> IntermediateMusicEntity:
+        return IntermediateMusicEntity(Duration.unknown(), url)
