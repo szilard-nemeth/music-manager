@@ -124,6 +124,7 @@ class FacebookLinkEmitter:
             else:
                 return FacebookPostTypeWithSoup(FacebookPostType.PUBLIC, soup)
 
+
 @auto_str
 class Facebook(ContentProviderAbs):
     HEADERS = {
@@ -176,6 +177,7 @@ class FacebookSelenium:
 
     LIKE_BUTTON_XPATH = '//span[text()="Like"]'
     SHARE_BUTTON_XPATH = '//span[text()="Share"]'
+    COMMENT_BUTTON_XPATH = '//span[text()="Comment"]'
 
     def __init__(self, config, fb_link_parser):
         self.config = config
@@ -193,26 +195,31 @@ class FacebookSelenium:
         LOG.info("Loading private Facebook post content...")
         return self.fb_link_parser.find_links_in_soup(soup)
 
-    def load_url_as_soup(self, url, timeout=10, poll_freq=2) -> BeautifulSoup:
+    def load_url_as_soup(self, url, timeout=25, poll_freq=2) -> BeautifulSoup:
         self._init_webdriver()
         if not self.logged_in:
             self._login()
 
         if self.driver.current_url != url:
-            self.driver.get(url)
-            try:
-                wait = WebDriverWait(self.driver, timeout=timeout, poll_frequency=poll_freq,
-                                     ignored_exceptions=[NoSuchElementException, ElementNotVisibleException,
-                                                         ElementNotSelectableException])
-                success = wait.until(expected_conditions.all_of(
-                    expected_conditions.element_to_be_clickable((By.XPATH, self.LIKE_BUTTON_XPATH)),
-                    expected_conditions.element_to_be_clickable((By.XPATH, self.SHARE_BUTTON_XPATH))))
-            except TimeoutException as e:
-                raise e
+            self._load_url(poll_freq, timeout, url)
         else:
             LOG.debug("Current URL matches desired URL '%s', not loading again", url)
         html = self.driver.page_source
         return BeautifulSoupHelper.create_bs(html)
+
+    def _load_url(self, poll_freq, timeout, url):
+        self.driver.get(url)
+        try:
+            wait = WebDriverWait(self.driver, timeout=timeout, poll_frequency=poll_freq,
+                                 ignored_exceptions=[NoSuchElementException, ElementNotVisibleException,
+                                                     ElementNotSelectableException])
+            success = wait.until(expected_conditions.all_of(
+                expected_conditions.element_to_be_clickable((By.XPATH, self.LIKE_BUTTON_XPATH)),
+                expected_conditions.element_to_be_clickable((By.XPATH, self.COMMENT_BUTTON_XPATH))))
+        except TimeoutException as e:
+            raise e
+        # TODO Add this to be more resilient for page load issues --> Should not have any of this "loading signs" in page!
+        # <div class="..." style="animation-delay: 1000ms;"></div>
 
     def _login(self):
         self.driver.get(self.FACEBOOK_COM)
