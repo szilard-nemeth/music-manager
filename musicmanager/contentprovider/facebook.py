@@ -174,6 +174,9 @@ class FacebookSelenium:
     COOKIE_BUTTON_TEXT = "Allow essential and optional cookies"
     COOKIE_ACCEPT_BUTTON_XPATH = '//button[text()="' + COOKIE_BUTTON_TEXT + '"]'
 
+    LIKE_BUTTON_XPATH = '//span[text()="Like"]'
+    SHARE_BUTTON_XPATH = '//span[text()="Share"]'
+
     def __init__(self, config, fb_link_parser):
         self.config = config
         self.fb_link_parser = fb_link_parser
@@ -190,13 +193,22 @@ class FacebookSelenium:
         LOG.info("Loading private Facebook post content...")
         return self.fb_link_parser.find_links_in_soup(soup)
 
-    def load_url_as_soup(self, url) -> BeautifulSoup:
+    def load_url_as_soup(self, url, timeout=10, poll_freq=2) -> BeautifulSoup:
         self._init_webdriver()
         if not self.logged_in:
             self._login()
 
         if self.driver.current_url != url:
             self.driver.get(url)
+            try:
+                wait = WebDriverWait(self.driver, timeout=timeout, poll_frequency=poll_freq,
+                                     ignored_exceptions=[NoSuchElementException, ElementNotVisibleException,
+                                                         ElementNotSelectableException])
+                success = wait.until(expected_conditions.all_of(
+                    expected_conditions.element_to_be_clickable((By.XPATH, self.LIKE_BUTTON_XPATH)),
+                    expected_conditions.element_to_be_clickable((By.XPATH, self.SHARE_BUTTON_XPATH))))
+            except TimeoutException as e:
+                raise e
         else:
             LOG.debug("Current URL matches desired URL '%s', not loading again", url)
         html = self.driver.page_source
