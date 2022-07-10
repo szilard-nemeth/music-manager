@@ -139,7 +139,7 @@ class MusicEntityCreator:
                         if not res.entities:
                             LOG.error("No valid links found for URL '%s'", url)
                     else:
-                        entity: IntermediateMusicEntity = provider.determine_duration_by_url(url)
+                        entity: IntermediateMusicEntity = provider.create_intermediate_entity(url)
                         entity.src_url = src_url
                         entities.add(entity)
 

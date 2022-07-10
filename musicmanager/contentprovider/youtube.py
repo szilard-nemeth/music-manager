@@ -32,12 +32,17 @@ class Youtube(ContentProviderAbs):
     def emit_links(self, url):
         return []
 
-    def determine_duration_by_url(self, url: str) -> IntermediateMusicEntity:
+    def create_intermediate_entity(self, url: str) -> IntermediateMusicEntity:
+        # TODO
+        duration = self.determine_duration_by_url(url)
+        return IntermediateMusicEntity(duration, url)
+
+    def determine_duration_by_url(self, url: str) -> Duration:
         # TODO Move this check elsewhere
         if url is None:
             url = ""
         duration: Duration = self.determine_duration(url)
-        return IntermediateMusicEntity(duration, url)
+        return duration
 
     @staticmethod
     def determine_duration(url):

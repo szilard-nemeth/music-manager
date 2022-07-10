@@ -31,7 +31,11 @@ class ContentProviderAbs(ABC):
         pass
 
     @abstractmethod
-    def determine_duration_by_url(self, url: str) -> IntermediateMusicEntity:
+    def create_intermediate_entity(self, url: str) -> IntermediateMusicEntity:
+        pass
+
+    @abstractmethod
+    def determine_duration_by_url(self, url: str) -> Duration:
         pass
 
     @abstractmethod

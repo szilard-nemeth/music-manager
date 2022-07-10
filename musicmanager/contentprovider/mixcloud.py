@@ -26,5 +26,10 @@ class Mixcloud(ContentProviderAbs):
     def emit_links(self, url):
         return []
 
-    def determine_duration_by_url(self, url: str) -> IntermediateMusicEntity:
-        return IntermediateMusicEntity(Duration.unknown(), url)
+    def create_intermediate_entity(self, url: str) -> IntermediateMusicEntity:
+        # TODO
+        duration = self.determine_duration_by_url(url)
+        return IntermediateMusicEntity(duration, url)
+
+    def determine_duration_by_url(self, url: str) -> Duration:
+        return Duration.unknown()
