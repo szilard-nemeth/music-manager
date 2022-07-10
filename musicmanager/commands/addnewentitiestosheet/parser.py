@@ -40,6 +40,13 @@ class MusicEntityInputFileParser:
                 "Difference in generic fields vs. extended fields. "
                 "Difference: {}, Generic: {}, Extended: {}".format(diff, generic_fields, extended_fields))
 
+        sheet_settings = config_reader.extended_config.parser_settings.sheet_settings
+        for s in sheet_settings.sheets:
+            actual_fields = set(s.fields)
+            diff = actual_fields.difference(extended_fields)
+            if diff:
+                raise ValueError("Unknown fields for sheet '{}': {}".format(s.name, diff))
+
     def parse(self, file: str):
         return self.generic_line_by_line_parser.parse(file,
                                                       parsed_object_dataclass=ParsedMusicEntity,

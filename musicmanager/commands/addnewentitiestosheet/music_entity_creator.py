@@ -1,7 +1,7 @@
 import logging
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import List, Iterable, Dict, Any
+from typing import List, Iterable, Dict, Any, Set
 
 from string_utils import auto_str
 
@@ -15,20 +15,23 @@ class MusicEntityType(Enum):
     MIX = "mix"
     TRACK = "track"
     UNKNOWN = "unknown"
+    NOT_FOUND = "not_found"
 
 
 @auto_str
 class MusicEntity:
-    def __init__(self, title: str, duration: Duration, url: str, entity_type: MusicEntityType):
+    def __init__(self, title: str, duration: Duration, url: str, src_url: str, entity_type: MusicEntityType):
         self.title = title
         self.duration: Duration = duration
         self.url = url
+        self.src_url = src_url
         self.entity_type = entity_type
 
     @property
     def original_url(self):
         # TODO this could return incorrect URL
-        return MusicEntityCreator._get_links_of_parsed_objs(self.data)
+        # return MusicEntityCreator.get_links_of_parsed_objs(self.data)
+        return self.src_url
 
 
 @dataclass
@@ -36,9 +39,33 @@ class GroupedMusicEntity:
     data: Any
     source_urls: Iterable[str]
     entities: List[MusicEntity] = field(default_factory=list)
+    title: str = None
+    type: MusicEntityType = None
+    links: Set[str] = field(default_factory=set)
 
     def add(self, entity):
         self.entities.append(entity)
+
+    def finalize_and_validate(self):
+        self._validate_entity_type()
+        self._validate_title()
+        self._finalize_links()
+
+    def _validate_entity_type(self):
+        entity_types = set(map(lambda e: e.entity_type, self.entities))
+        if len(entity_types) > 1:
+            raise ValueError("Conflicting entity type for {}. Entities: {}".format(self.__class__, self.entities))
+        self.entity_type = list(entity_types)[0]
+
+    def _validate_title(self):
+        titles = set(map(lambda e: e.title, self.entities))
+        # TODO Titles can be different, example: Post main content is a mix, but another mix / track found in the comments section
+        # if len(titles) > 1:
+        #     raise ValueError("Conflicting entity titles for {}. Entities: {}".format(self.__class__, self.entities))
+        self.entity_title = list(titles)[0]
+
+    def _finalize_links(self):
+        self.links = set(map(lambda e: e.url, self.entities))
 
 
 @dataclass
@@ -48,6 +75,10 @@ class IntermediateMusicEntity:
     type: MusicEntityType
     url: str
     src_url: str = None
+
+    @classmethod
+    def not_found(cls, src_url):
+        return IntermediateMusicEntity("N/A", Duration.unknown(), MusicEntityType.NOT_FOUND, "N/A", src_url)
 
 
 @dataclass
@@ -85,7 +116,7 @@ class MusicEntityCreator:
     def create_music_entities(self, parsed_objs) -> List[GroupedMusicEntity]:
         result: List[GroupedMusicEntity] = []
         for obj in parsed_objs:
-            src_urls = MusicEntityCreator._get_links_of_parsed_objs(obj)
+            src_urls = MusicEntityCreator.get_links_of_parsed_objs(obj)
             LOG.info("Found links from source file: %s", src_urls)
             entities: IntermediateMusicEntities = IntermediateMusicEntities(src_urls)
             intermediate_entities: IntermediateMusicEntities = self.check_links_against_providers(entities, src_urls, src_url="unknown", allow_emit=True)
@@ -98,16 +129,17 @@ class MusicEntityCreator:
 
     @staticmethod
     def create_from_intermediate_entities(obj, intermediate_entities: IntermediateMusicEntities) -> GroupedMusicEntity:
-        src_urls = MusicEntityCreator._get_links_of_parsed_objs(obj)
+        src_urls = MusicEntityCreator.get_links_of_parsed_objs(obj)
         grouped_entity = GroupedMusicEntity(obj, src_urls)
         for ie in intermediate_entities:
             # TODO MusicEntity vs. IntermediateMusicEntity: Could be merged?
-            entity = MusicEntity(ie.title, ie.duration, ie.url, ie.type)
+            entity = MusicEntity(ie.title, ie.duration, ie.url, ie.src_url, ie.type)
             grouped_entity.add(entity)
         return grouped_entity
 
     @staticmethod
-    def _get_links_of_parsed_objs(obj):
+    def get_links_of_parsed_objs(obj):
+        # TODO Direct reference to dynamic fields (link_1, link_2, link_3)
         links = [obj.link_1, obj.link_2, obj.link_3]
         links = list(filter(None, links))
         return links
@@ -132,8 +164,9 @@ class MusicEntityCreator:
                             LOG.error("No valid links found for URL '%s'", url)
                     else:
                         entity: IntermediateMusicEntity = provider.create_intermediate_entity(url)
-                        entity.src_url = src_url
-                        entities.add(entity)
+                        if entity:
+                            entity.src_url = src_url
+                            entities.add(entity)
 
             if not link_handled:
                 # TODO Make a CLI option for this whether to store unknown links

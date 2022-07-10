@@ -1,8 +1,9 @@
 import logging
 import os
+from dataclasses import dataclass, field
 from enum import Enum
 from pprint import pformat
-from typing import List, Dict
+from typing import List, Dict, Any
 
 from googleapiwrapper.google_sheet import GSheetOptions, GSheetWrapper
 from pythoncommons.file_parser.parser_config_reader import GenericLineParserConfig, ParserConfigReader
@@ -11,8 +12,9 @@ from pythoncommons.project_utils import SimpleProjectUtils
 from pythoncommons.result_printer import BasicResultPrinter
 
 import musicmanager.commands.addnewentitiestosheet.parser as p
-from musicmanager.commands.addnewentitiestosheet.config import ParserConfig, Fields
-from musicmanager.commands.addnewentitiestosheet.music_entity_creator import MusicEntityCreator, GroupedMusicEntity
+from musicmanager.commands.addnewentitiestosheet.config import ParserConfig, Fields, Sheet
+from musicmanager.commands.addnewentitiestosheet.music_entity_creator import MusicEntityCreator, GroupedMusicEntity, \
+    MusicEntityType
 from musicmanager.commands.addnewentitiestosheet.parser import MusicEntityInputFileParser
 from musicmanager.commands_common import CommandType, CommandAbs
 from musicmanager.constants import LocalDirs
@@ -34,30 +36,57 @@ class OperationMode(Enum):
     DRY_RUN = "DRYRUN"
 
 
+@dataclass
+class GSheetUpdate:
+    sheet: Sheet
+    entity_type: MusicEntityType
+    gsheet_wrapper: GSheetWrapper
+    header: List[str]
+    col_indices_by_fields: Dict[str, int]
+    operation_mode: OperationMode
+    rows: List[Any] = field(default_factory=list)
+    data_from_sheet: List[List[str]] = None
+    fields_obj: Fields = None
+
+    @property
+    def spreadsheet(self):
+        return self.gsheet_wrapper.options.spreadsheet
+
+    @property
+    def worksheet(self) -> str:
+        if not self.gsheet_wrapper.options.single_worksheet_mode:
+            raise ValueError("Sheet with name '{}' is not in single worksheet mode!".format(
+                self.gsheet_wrapper.options.spreadsheet))
+        return self.gsheet_wrapper.options.worksheets[0]
+
+    def fetch_data_from_sheet(self):
+        if not self.operation_mode == OperationMode.GSHEET:
+            self.data_from_sheet = []
+            return self.data_from_sheet
+
+        if not self.data_from_sheet:
+            self.data_from_sheet = self.gsheet_wrapper.read_data_by_header(ROWS_TO_FETCH, skip_header_row=True)
+            sheet_ref = self.spreadsheet + "/" + self.worksheet
+            LOG.debug("Fetched data from sheet '%s': %s", sheet_ref, self.data_from_sheet)
+        else:
+            LOG.warning("Data from sheet is already fetched")
+        return self.data_from_sheet
+
+
 class AddNewMusicEntityCommandConfig:
     def __init__(self, args, parser=None):
-        self.gsheet_wrapper = None
         self.fb_password = args.fbpwd
         self.fb_username = args.fbuser
         self.fb_redirect_link_limit = args.fb_redirect_link_limit
         self.js_renderer: JavaScriptRenderer = self._choose_js_renderer(args)
         self._validate(args, parser)
         self.duplicate_detection = args.duplicate_detection
-        self.headers = None
 
     def _validate(self, args, parser):
-        if args.gsheet and (args.gsheet_client_secret is None or
-                            args.gsheet_spreadsheet is None or
-                            args.gsheet_worksheet is None):
+        if args.gsheet and args.gsheet_client_secret is None:
             parser.error("--gsheet requires the following mandatory arguments: \n"
-                         "--gsheet-client-secret, --gsheet-spreadsheet and --gsheet-worksheet.")
+                         "--gsheet-client-secret.")
         self.operation_mode = self._validate_operation_mode(args)
-
-        if self.operation_mode == OperationMode.GSHEET:
-            args.gsheet_options = GSheetOptions(args.gsheet_client_secret,
-                                                args.gsheet_spreadsheet,
-                                                args.gsheet_worksheet)
-            self.gsheet_wrapper = GSheetWrapper(args.gsheet_options)
 
         parser_config_dir = SimpleProjectUtils.get_project_dir(
             basedir=LocalDirs.REPO_ROOT_DIR,
@@ -135,8 +164,7 @@ class AddNewMusicEntityCommand(CommandAbs):
     def __init__(self, args, parser=None):
         super().__init__()
         self.config = AddNewMusicEntityCommandConfig(args, parser=parser)
-        self.rows = None
-        self.header = None
+        self.updates = List[GSheetUpdate]
 
     @staticmethod
     def create_parser(subparsers):
@@ -180,55 +208,98 @@ class AddNewMusicEntityCommand(CommandAbs):
     @staticmethod
     def execute(args, parser=None):
         command = AddNewMusicEntityCommand(args)
-        command.run()
+        command.run(args)
 
-    def run(self):
+    def run(self, args):
         LOG.info(f"Starting to add new music entities. \n Config: {str(self.config)}")
         config_reader: ParserConfigReader = ParserConfigReader.read_from_file(filename=self.config.parser_conf_json,
                                                                               obj_data_class=ParserConfig,
                                                                               config_type=GenericLineParserConfig)
         LOG.info("Read project config: %s", pformat(config_reader.config))
         parser = MusicEntityInputFileParser(config_reader)
-        col_indices_by_fields = self._init_header_and_columns(parser)
+        sheets = parser.extended_config.parser_settings.sheet_settings.sheets
+        # TODO Verify if ONLY ONE sheet object is defined per entity type!
+        # TODO Verify if sheet object is defined only once (no duplicate sheet configs)
+        gsheet_updates: Dict[MusicEntityType, GSheetUpdate] = self._init_gsheet_updates(sheets, parser.extended_config.fields, args.gsheet_client_secret)
 
         parsed_objs = []
-        self.rows = []
         for src_file in self.config.src_files:
             parsed_objs.extend(parser.parse(src_file))
 
-        if self.config.operation_mode == OperationMode.GSHEET and self.config.duplicate_detection:
-            LOG.info("Trying to detect duplicates...")
-            rows = self.config.gsheet_wrapper.read_data_by_header(ROWS_TO_FETCH, skip_header_row=True)
-            LOG.debug("Fetched data from sheet: %s", rows)
-            objs_from_sheet = DataConverter.convert_rows_to_data(rows, parser.extended_config.fields, col_indices_by_fields)
-            parsed_objs = self.filter_duplicates(objs_from_sheet, parsed_objs)
-
         music_entity_creator = self._create_music_entity_creator()
         music_entities: List[GroupedMusicEntity] = music_entity_creator.create_music_entities(parsed_objs)
-        self.rows = DataConverter.convert_data_to_rows(music_entities, parser.extended_config.fields, col_indices_by_fields)
-        self._update_google_sheet(col_indices_by_fields, parser)
 
-    def _update_google_sheet(self, col_indices_by_fields, parser):
-        if not self.header:
+        for me in music_entities:
+            me.finalize_and_validate()
+        # TODO Run duplicate detection on parsed_objs OR music_entities before proceeding
+
+        entity_types = [e for e in MusicEntityType]
+        music_entities_by_type: Dict[MusicEntityType, List[GroupedMusicEntity]] = self._group_music_entities_by_type(music_entities, entity_types)
+
+        unknown_entities = music_entities_by_type[MusicEntityType.UNKNOWN]
+        if unknown_entities:
+            LOG.error("Unknown entities: %s", unknown_entities)
+        not_found_entities = music_entities_by_type[MusicEntityType.NOT_FOUND]
+        if not_found_entities:
+            LOG.error("Not found entities: %s", not_found_entities)
+
+        for update in gsheet_updates.values():
+            LOG.info("Trying to detect duplicates (sheet vs. objects)...")
+            update.fetch_data_from_sheet()
+            objs_from_sheet = DataConverter.convert_rows_to_data(update, update.fields_obj)
+            entities: List[GroupedMusicEntity] = music_entities_by_type[update.entity_type]
+            if self.config.duplicate_detection:
+                entities = self.filter_duplicates(objs_from_sheet, entities)
+
+            update.rows = DataConverter.convert_data_to_rows(entities,
+                                                             update.fields_obj,
+                                                             update.col_indices_by_fields)
+            self._update_google_sheet(update)
+
+    def _update_google_sheet(self, update):
+        if not update.header:
             raise ValueError("Header is empty")
-        if not self.rows:
+        if not update.rows:
             raise ValueError("No data to processs (rows)!")
-        BasicResultPrinter.print_table(self.rows, self.header)
+        BasicResultPrinter.print_table(update.rows, update.header)
         if self.config.operation_mode == OperationMode.GSHEET:
             LOG.info("Updating Google sheet with data...")
-            self.update_gsheet(parser, col_indices_by_fields)
+            self.update_gsheet(update)
         elif self.config.operation_mode == OperationMode.DRY_RUN:
             LOG.info("[DRY-RUN] Would add the following rows to Google Sheets: ")
-            LOG.info(self.rows)
+            LOG.info(update.rows)
         LOG.info("Finished adding new music entities")
 
-    def _init_header_and_columns(self, parser):
-        self.header = list(parser.extended_config.fields.by_sheet_name.keys())
-        if self.config.operation_mode == OperationMode.GSHEET:
-            col_indices_by_fields: Dict[str, int] = self.config.gsheet_wrapper.get_column_indices_of_header()
-        else:
-            col_indices_by_fields: Dict[str, int] = {col_name: idx for idx, col_name in enumerate(self.header)}
-        return col_indices_by_fields
+    def _init_gsheet_updates(self, sheets, fields: Fields, gsheet_client_secret: str):
+        gsheet_updates = {}
+        for sheet in sheets:
+            gsheet_options = GSheetOptions(gsheet_client_secret,
+                                           sheet.spreadsheet_name,
+                                           sheet.worksheet_name)
+            gsheet_wrapper = GSheetWrapper(gsheet_options)
+
+            field_names = sheet.fields
+            if self.config.operation_mode == OperationMode.GSHEET:
+                # TODO Validate col_indices_by_fields vs. field_names: col_indices_by_fields should contain all from field_names
+                col_indices_by_fields: Dict[str, int] = gsheet_wrapper.get_column_indices_of_header()
+            else:
+                col_indices_by_fields: Dict[str, int] = {col_name: idx for idx, col_name in enumerate(field_names)}
+            # TODO Is the header correct? --> VALIDATE: Length of sheet header ('col_indices_by_fields') should be the same as field_names
+            if len(field_names) != len(col_indices_by_fields.keys()):
+                raise ValueError("Length of fields vs. header of Google sheet is different "
+                                 "(# of fields: {} vs. # of header fields: {}. "
+                                 "Fields: {}, header: {}"
+                                 .format(len(field_names), len(col_indices_by_fields), field_names, col_indices_by_fields.keys()))
+            update = GSheetUpdate(sheet=sheet,
+                                  entity_type=sheet.entity_type,
+                                  gsheet_wrapper=gsheet_wrapper,
+                                  header=field_names,
+                                  operation_mode=self.config.operation_mode,
+                                  col_indices_by_fields=col_indices_by_fields)
+            update.fields_obj = fields.get_view_by_field_names(update.sheet.fields)
+            gsheet_updates[sheet.entity_type] = update
+
+        return gsheet_updates
 
     def _create_music_entity_creator(self):
         content_provider_classes = [Youtube, Facebook, Beatport, SoundCloud, Mixcloud]
@@ -244,40 +315,53 @@ class AddNewMusicEntityCommand(CommandAbs):
         music_entity_creator = MusicEntityCreator(content_providers)
         return music_entity_creator
 
-    def update_gsheet(self, parser, col_indices_by_fields):
+    def update_gsheet(self, update: GSheetUpdate):
         # TODO add back later
         # self.config.gsheet_wrapper.write_data_to_new_rows(self.header, self.data, clear_range=False)
         pass
 
     @staticmethod
     def filter_duplicates(objs_from_sheet: List[p.ParsedMusicEntity],
-                          parsed_objs):
-        existing_titles = set([obj.title for obj in objs_from_sheet])
-        existing_links = set([obj.link_1 for obj in objs_from_sheet])
-        existing_links.update([obj.link_2 for obj in objs_from_sheet])
-        existing_links.update([obj.link_3 for obj in objs_from_sheet])
+                          entities: List[GroupedMusicEntity]) -> List[GroupedMusicEntity]:
+        if not objs_from_sheet:
+            return entities
 
-        filtered = []
-        num_dupes_by_title = 0
-        num_dupes_by_link = 0
-        for obj in parsed_objs:
-            if obj.title in existing_titles:
-                LOG.debug("Detected duplicate by title: '%s'", obj.title)
-                num_dupes_by_title += 1
-            elif obj.link_1 in existing_links:
-                num_dupes_by_link += 1
-                LOG.debug("Detected duplicate by link1: '%s'", obj.link_1)
-            elif obj.link_2 in existing_links:
-                num_dupes_by_link += 1
-                LOG.debug("Detected duplicate by link2: '%s'", obj.link_2)
-            elif obj.link_3 in existing_links:
-                num_dupes_by_link += 1
-                LOG.debug("Detected duplicate by link3: '%s'", obj.link_3)
+        titles_from_sheet = set([obj.title for obj in objs_from_sheet])
+        links_from_sheet = set([l for obj in objs_from_sheet for l in MusicEntityCreator.get_links_of_parsed_objs(obj)])
+
+        filtered: List[GroupedMusicEntity] = []
+        duplicate_entities_by_title = []
+        duplicate_entities_by_link = []
+        for entity in entities:
+            if entity.title in titles_from_sheet:
+                LOG.debug("Detected duplicate by title: '%s'", entity.title)
+                duplicate_entities_by_title.append(entity)
+                continue
+
+            intersection = entity.links.intersection(links_from_sheet)
+            if intersection:
+                LOG.debug("Detected duplicate by links: '%s'", intersection)
+                duplicate_entities_by_link.append(entity)
             else:
-                filtered.append(obj)
+                filtered.append(entity)
 
-        LOG.info("Found %d duplicates by title and %d duplicates by link", num_dupes_by_title, num_dupes_by_link)
+        LOG.info("Found %d duplicates by title and %d duplicates by link",
+                 len(duplicate_entities_by_title), len(duplicate_entities_by_link))
         return filtered
+
+    @staticmethod
+    def _group_music_entities_by_type(music_entities: List[GroupedMusicEntity], entity_types: List[MusicEntityType]) -> Dict[MusicEntityType, List[GroupedMusicEntity]]:
+        res = {}
+        for et in entity_types:
+            res[et] = list(filter(lambda x: x.entity_type == et, music_entities))
+
+        remainders = list(filter(lambda x: x.entity_type not in entity_types or
+                                           x.entity_type == MusicEntityType.UNKNOWN, music_entities))
+
+        # TODO raise exception if soundcloud Music entity type is implemented
+        # if remainders:
+        #     raise ValueError("Some music entities are having unknown types: {}".format(remainders))
+        return res
 
 
 class DataConverter:
@@ -319,15 +403,14 @@ class DataConverter:
         cls.row_stats.update(values_by_fields)
 
     @classmethod
-    def convert_rows_to_data(cls, rows: List[List[str]],
-                             fields_obj: Fields,
-                             col_indices_by_sheet_name: Dict[str, int]) -> List[p.ParsedMusicEntity]:
+    def convert_rows_to_data(cls, gsheet_update: GSheetUpdate,
+                             fields_obj: Fields) -> List[p.ParsedMusicEntity]:
         res = []
-        for row in rows:
+        for row in gsheet_update.data_from_sheet:
             matches = {}
             for f in fields_obj.fields:
                 f_sheet_name = f.entity_field.name_in_sheet
-                col_idx = col_indices_by_sheet_name[f_sheet_name]
+                col_idx = gsheet_update.col_indices_by_fields[f_sheet_name]
                 # GSheet returns shorter rows for empty cells
                 if len(row) - 1 < col_idx:
                     matches[f.name] = ""

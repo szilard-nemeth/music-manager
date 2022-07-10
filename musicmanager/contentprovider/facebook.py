@@ -427,6 +427,7 @@ class FacebookLinkParser:
         new_link = HtmlParser.get_link_from_standard_redirect_page(orig_url, link)
         if not new_link:
             raise ValueError("Cannot find redirected link from source URL: {}".format(link))
+        return new_link
 
     @staticmethod
     def find_private_fb_post_div(soup):

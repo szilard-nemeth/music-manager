@@ -8,6 +8,8 @@ import typing
 from dataclasses_json import dataclass_json, LetterCase
 from pythoncommons.file_parser.parser_config_reader import GREEDY_FIELD_POSTFIX
 
+from musicmanager.commands.addnewentitiestosheet.music_entity_creator import MusicEntityType
+
 LOG = logging.getLogger(__name__)
 
 
@@ -32,15 +34,20 @@ class Fields:
     fields: List[Field] = field(default_factory=list)
     by_sheet_name: Dict[str, Field] = field(default_factory=dict)
     by_short_name: Dict[str, Field] = field(default_factory=dict)
+    all_fields: Dict[str, EntityField] = field(default_factory=dict)
     dataclass_fields = None
 
     def post_init(self, fields: Dict[str, EntityField]):
+        self.all_fields = fields
+        self.init_by_fields(fields)
+
+    def init_by_fields(self, fields):
         self.fields = self._create_field_objs(fields)
         self.by_sheet_name = {f.entity_field.name_in_sheet: f for f in self.fields}
         self.by_short_name = {f.name: f for f in self.fields}
-
         key_conv_func = self._convert_to_dataclass_prop_name
-        self.dataclass_fields = {key_conv_func(k): (key_conv_func(k), typing.Any, field(default=None, init=False)) for k, v in
+        self.dataclass_fields = {key_conv_func(k): (key_conv_func(k), typing.Any, field(default=None, init=False)) for
+                                 k, v in
                                  self.by_short_name.items()}
         if not self.dataclass_fields:
             raise ValueError("Dataclass fields are empty!")
@@ -112,10 +119,34 @@ class Fields:
             setattr(obj, prop_name, val)
         return obj
 
+    def get_view_by_field_names(self, field_names: List[str]):
+        filtered_fields = {f_name: self.all_fields[f_name] for f_name in field_names}
+        f = Fields()
+        f.init_by_fields(filtered_fields)
+        return f
+
+
+@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass
+class Sheet:
+    name: str
+    entity_type: MusicEntityType
+    spreadsheet_name: str
+    worksheet_name: str
+    # TODO Rename to field_names
+    fields: List[str]
+
+
+@dataclass_json(letter_case=LetterCase.CAMEL)
+@dataclass
+class SheetSettings:
+    sheets: List[Sheet]
+
 
 @dataclass_json(letter_case=LetterCase.CAMEL)
 @dataclass
 class ParserSettings:
+    sheet_settings: SheetSettings
     fields: Dict[str, EntityField] = field(default_factory=dict)
 
 
