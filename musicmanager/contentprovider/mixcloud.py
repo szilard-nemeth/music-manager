@@ -31,5 +31,9 @@ class Mixcloud(ContentProviderAbs):
         duration = self._determine_duration_by_url(url)
         return IntermediateMusicEntity(duration, url)
 
+    def _determine_title_by_url(self, url: str) -> Duration:
+        # TODO implement
+        pass
+
     def _determine_duration_by_url(self, url: str) -> Duration:
         return Duration.unknown()

@@ -38,6 +38,10 @@ class ContentProviderAbs(ABC):
         pass
 
     @abstractmethod
+    def _determine_title_by_url(self, url: str) -> Duration:
+        pass
+
+    @abstractmethod
     def is_media_provider(self):
         pass
 
