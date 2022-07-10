@@ -49,8 +49,7 @@ class FacebookLinkEmitter:
         self.js_renderer = js_renderer
 
     def emit_links(self, url) -> Dict[str, None]:
-        resp = requests.get(url, headers=Facebook.HEADERS)
-        soup = HtmlParser.create_bs(resp.text)
+        soup = HtmlParser.create_bs_from_url(url, headers=Facebook.HEADERS)
         # TODO This is wrong: Selenium will pop up for public Facebook content as well!
         ptws = self._determine_if_private(soup, url)
         if ptws.type in [FacebookPostType.PUBLIC_POST, FacebookPostType.PUBLIC]:
@@ -152,13 +151,12 @@ class Facebook(ContentProviderAbs):
         return False
 
     def create_intermediate_entity(self, url: str) -> IntermediateMusicEntity:
-        # TODO
+        title = self._determine_title_by_url(url)
         duration = self._determine_duration_by_url(url)
-        return IntermediateMusicEntity(duration, url)
+        return IntermediateMusicEntity(title, duration, url)
 
-    def _determine_title_by_url(self, url: str) -> Duration:
-        # TODO implement
-        pass
+    def _determine_title_by_url(self, url: str) -> str:
+        return HtmlParser.get_title_from_url(url)
 
     def _determine_duration_by_url(self, url: str) -> Duration:
         return Duration.unknown()

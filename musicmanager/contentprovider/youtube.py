@@ -7,7 +7,7 @@ from string_utils import auto_str
 
 from musicmanager.commands.addnewentitiestosheet.music_entity_creator import IntermediateMusicEntity
 from musicmanager.common import Duration
-from musicmanager.contentprovider.common import ContentProviderAbs
+from musicmanager.contentprovider.common import ContentProviderAbs, HtmlParser
 
 YOUTUBE_URL_1 = "youtube.com"
 YOUTUBE_URL_2 = "youtu.be"
@@ -34,13 +34,12 @@ class Youtube(ContentProviderAbs):
         return []
 
     def create_intermediate_entity(self, url: str) -> IntermediateMusicEntity:
-        # TODO
+        title = self._determine_title_by_url(url)
         duration = self._determine_duration_by_url(url)
-        return IntermediateMusicEntity(duration, url)
+        return IntermediateMusicEntity(title, duration, url)
 
-    def _determine_title_by_url(self, url: str) -> Duration:
-        # TODO implement
-        pass
+    def _determine_title_by_url(self, url: str) -> str:
+        return HtmlParser.get_title_from_url(url)
 
     def _determine_duration_by_url(self, url: str) -> Duration:
         # TODO Move this check elsewhere

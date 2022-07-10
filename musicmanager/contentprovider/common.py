@@ -23,6 +23,12 @@ class HtmlParser:
         return BeautifulSoup(html, features=BS4_HTML_PARSER)
 
     @staticmethod
+    def create_bs_from_url(url, headers=None):
+        resp = requests.get(url, headers=headers)
+        soup = HtmlParser.create_bs(resp.text)
+        return soup
+
+    @staticmethod
     def find_divs_with_text(soup: BeautifulSoup, text: str):
         return soup.find_all("div", string=text)
 
@@ -71,6 +77,12 @@ class HtmlParser:
         LOG.debug("Link '%s' resolved to '%s'", src_url, unescaped_link)
         return unescaped_link
 
+    @classmethod
+    def get_title_from_url(cls, url):
+        soup = HtmlParser.create_bs_from_url(url)
+        title = soup.title.string
+        return title
+
 
 class ContentProviderAbs(ABC):
     @abstractmethod
@@ -90,7 +102,7 @@ class ContentProviderAbs(ABC):
         pass
 
     @abstractmethod
-    def _determine_title_by_url(self, url: str) -> Duration:
+    def _determine_title_by_url(self, url: str) -> str:
         pass
 
     @abstractmethod

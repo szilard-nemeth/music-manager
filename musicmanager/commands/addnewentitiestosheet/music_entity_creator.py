@@ -19,9 +19,10 @@ class MusicEntityType(Enum):
 
 @auto_str
 class MusicEntity:
-    def __init__(self, duration: Duration, url: str, entity_type: MusicEntityType):
-        self.url = url
+    def __init__(self, title: str, duration: Duration, url: str, entity_type: MusicEntityType):
+        self.title = title
         self.duration: Duration = duration
+        self.url = url
         self.entity_type = entity_type
 
     @property
@@ -42,6 +43,7 @@ class GroupedMusicEntity:
 
 @dataclass
 class IntermediateMusicEntity:
+    title: str
     duration: Duration
     url: str
     src_url: str = None
@@ -96,9 +98,9 @@ class MusicEntityCreator:
     def create_from_intermediate_entities(obj, intermediate_entities: IntermediateMusicEntities) -> GroupedMusicEntity:
         src_urls = MusicEntityCreator._get_links_of_parsed_objs(obj)
         grouped_entity = GroupedMusicEntity(obj, src_urls)
-        for i_entity in intermediate_entities:
-            entity_type = MusicEntityCreator._determine_entity_type(i_entity.duration)
-            entity = MusicEntity(i_entity.duration, i_entity.url, entity_type)
+        for ie in intermediate_entities:
+            entity_type = MusicEntityCreator._determine_entity_type(ie.duration)
+            entity = MusicEntity(ie.title, ie.duration, ie.url, entity_type)
             grouped_entity.add(entity)
         return grouped_entity
 
