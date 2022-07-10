@@ -1,7 +1,7 @@
 import logging
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Tuple, Set, Iterable, Dict
+from typing import Iterable, Dict
 
 from bs4 import BeautifulSoup
 from requests import Response
@@ -9,7 +9,6 @@ from requests_html import HTMLSession
 
 from musicmanager.commands.addnewentitiestosheet.music_entity_creator import IntermediateMusicEntity
 from musicmanager.common import Duration
-
 
 LOG = logging.getLogger(__name__)
 BS4_HTML_PARSER = "html.parser"

@@ -12,8 +12,7 @@ from pythoncommons.result_printer import BasicResultPrinter
 
 import musicmanager.commands.addnewentitiestosheet.parser as p
 from musicmanager.commands.addnewentitiestosheet.config import ParserConfig, Fields
-from musicmanager.commands.addnewentitiestosheet.music_entity_creator import MusicEntityCreator, MusicEntity, \
-    GroupedMusicEntity
+from musicmanager.commands.addnewentitiestosheet.music_entity_creator import MusicEntityCreator, GroupedMusicEntity
 from musicmanager.commands.addnewentitiestosheet.parser import MusicEntityInputFileParser
 from musicmanager.commands_common import CommandType, CommandAbs
 from musicmanager.constants import LocalDirs

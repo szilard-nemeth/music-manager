@@ -1,5 +1,5 @@
 import logging
-from typing import Tuple, Iterable
+from typing import Iterable
 
 from string_utils import auto_str
 

@@ -36,8 +36,8 @@ class Fields:
 
     def post_init(self, fields: Dict[str, EntityField]):
         self.fields = self._create_field_objs(fields)
-        self.by_sheet_name = {field.entity_field.name_in_sheet: field for field in self.fields}
-        self.by_short_name = {field.name: field for field in self.fields}
+        self.by_sheet_name = {f.entity_field.name_in_sheet: f for f in self.fields}
+        self.by_short_name = {f.name: f for f in self.fields}
 
         key_conv_func = self._convert_to_dataclass_prop_name
         self.dataclass_fields = {key_conv_func(k): (key_conv_func(k), typing.Any, field(default=None, init=False)) for k, v in

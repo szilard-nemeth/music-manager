@@ -1,6 +1,7 @@
-from datetime import timedelta
-from typing import Tuple, Iterable
 import logging
+from datetime import timedelta
+from typing import Iterable
+
 import youtube_dl
 from string_utils import auto_str
 

@@ -4,7 +4,7 @@ import re
 from dataclasses import dataclass
 from enum import Enum
 from typing import Iterable, List, Callable, Dict, Any
-from typing import Tuple, Set
+from typing import Set
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 
 import requests
@@ -20,11 +20,12 @@ from string_utils import auto_str
 from musicmanager.commands.addnewentitiestosheet.music_entity_creator import IntermediateMusicEntity
 from musicmanager.common import Duration
 from musicmanager.contentprovider.common import ContentProviderAbs, BeautifulSoupHelper
+from bs4 import BeautifulSoup
+from bs4.element import Comment, Tag
 
 FACEBOOK_URL_FRAGMENT1 = "facebook.com"
 FACEBOOK_REDIRECT_LINK = "https://l.facebook.com/l.php"
 LOG = logging.getLogger(__name__)
-from bs4 import BeautifulSoup, Comment, Tag
 
 
 class FacebookPostType(Enum):
@@ -67,7 +68,7 @@ class FacebookLinkEmitter:
             usr_content_wrapper_divs = parser.find_user_content_wrapper_divs(soup)
             if usr_content_wrapper_divs:
                 return {}
-            return None
+            return {}
 
         def f2(parser, url, soup) -> Dict[str, None]:
             divs_wo_class = parser.find_divs_with_empty_class(soup)
@@ -90,7 +91,7 @@ class FacebookLinkEmitter:
     def _chained_func_calls(self, f_calls: List[Callable[[Any, str, BeautifulSoup], Dict[str, None]]], url, soup) -> Dict[str, None]:
         for f_call in f_calls:
             ret = f_call(self.fb_link_parser, url, soup)
-            if ret is not None:
+            if ret is not None and len(ret) > 0:
                 return ret
         raise ValueError("Could not find any meaningful value from function calls: {}".format(f_calls))
 
