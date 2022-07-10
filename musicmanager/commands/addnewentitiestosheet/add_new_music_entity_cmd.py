@@ -17,7 +17,7 @@ from musicmanager.commands.addnewentitiestosheet.parser import MusicEntityInputF
 from musicmanager.commands_common import CommandType, CommandAbs
 from musicmanager.constants import LocalDirs
 from musicmanager.contentprovider.beatport import Beatport
-from musicmanager.contentprovider.common import JavaScriptRenderer, JSRenderer
+from musicmanager.contentprovider.common import JavaScriptRenderer, JSRenderer, HtmlParser
 from musicmanager.contentprovider.facebook import Facebook, FacebookLinkParser, FacebookSelenium
 from musicmanager.contentprovider.mixcloud import Mixcloud
 from musicmanager.contentprovider.soundcloud import SoundCloud
@@ -236,6 +236,8 @@ class AddNewMusicEntityCommand(CommandAbs):
         fb_link_parser = FacebookLinkParser(urls_to_match, self.config.fb_redirect_link_limit)
         fb_selenium = FacebookSelenium(self.config, fb_link_parser)
         js_renderer = JSRenderer(self.config.js_renderer, fb_selenium)
+        # TODO dirty hack
+        HtmlParser.js_renderer = js_renderer
         facebook = Facebook(self.config, js_renderer, fb_selenium, fb_link_parser)
 
         content_providers = [Youtube(), facebook, Beatport(), SoundCloud(), Mixcloud()]

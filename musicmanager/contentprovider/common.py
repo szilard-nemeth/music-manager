@@ -18,6 +18,8 @@ BS4_HTML_PARSER = "html.parser"
 
 
 class HtmlParser:
+    js_renderer = None
+
     @staticmethod
     def create_bs(html) -> BeautifulSoup:
         return BeautifulSoup(html, features=BS4_HTML_PARSER)
@@ -83,6 +85,12 @@ class HtmlParser:
         title = soup.title.string
         return title
 
+    @classmethod
+    def get_title_from_url_with_js(cls, url):
+        soup = HtmlParser.js_renderer.render_with_javascript(url, force_use_requests=True)
+        title = soup.title.string
+        return title
+
 
 class ContentProviderAbs(ABC):
     @abstractmethod
@@ -131,8 +139,8 @@ class JSRenderer:
         elif js_renderer_type == JavaScriptRenderer.SELENIUM:
             self.use_selenium = True
 
-    def render_with_javascript(self, url) -> BeautifulSoup:
-        if self.use_requests_html:
+    def render_with_javascript(self, url, force_use_requests=False) -> BeautifulSoup:
+        if self.use_requests_html or force_use_requests:
             html_content = JSRenderer._render_with_requests_html(url)
             return HtmlParser.create_bs(html_content)
         elif self.use_selenium:

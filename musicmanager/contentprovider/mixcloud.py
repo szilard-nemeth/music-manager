@@ -1,3 +1,4 @@
+import re
 from typing import Iterable
 
 from string_utils import auto_str
@@ -11,6 +12,8 @@ NORMAL_URL = "mixcloud.com"
 
 @auto_str
 class Mixcloud(ContentProviderAbs):
+    HTML_TITLE_PATTERN = re.compile(r"(.*) by(.*) \| Mixcloud")
+
     @classmethod
     def url_matchers(cls) -> Iterable[str]:
         return [NORMAL_URL]
@@ -32,7 +35,19 @@ class Mixcloud(ContentProviderAbs):
         return IntermediateMusicEntity(title, duration, url)
 
     def _determine_title_by_url(self, url: str) -> str:
-        return HtmlParser.get_title_from_url(url)
+        html_title = HtmlParser.get_title_from_url(url)
+        if html_title == "Mixcloud":
+            html_title = HtmlParser.get_title_from_url_with_js(url)
+
+        # Example HTML title:
+        # Steve March - Music Is My Religion // Episode 5 (2022-02-04) by Steve March | Mixcloud
+        # Where title is: 'Steve March - Music Is My Religion // Episode 5 (2022-02-04)'
+        m = re.match(Mixcloud.HTML_TITLE_PATTERN, html_title)
+        if len(m.groups()) != 2:
+            raise ValueError("Unexpected Mixcloud HTML title: {}".format(html_title))
+        title = m.group(1)
+        author = m.group(2)
+        return title
 
     def _determine_duration_by_url(self, url: str) -> Duration:
         return Duration.unknown()
