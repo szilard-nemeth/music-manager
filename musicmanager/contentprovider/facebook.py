@@ -19,7 +19,7 @@ from string_utils import auto_str
 
 from musicmanager.commands.addnewentitiestosheet.music_entity_creator import IntermediateMusicEntity
 from musicmanager.common import Duration
-from musicmanager.contentprovider.common import ContentProviderAbs, BeautifulSoupHelper
+from musicmanager.contentprovider.common import ContentProviderAbs, HtmlParser
 from bs4 import BeautifulSoup
 from bs4.element import Comment, Tag
 
@@ -50,7 +50,7 @@ class FacebookLinkEmitter:
 
     def emit_links(self, url) -> Dict[str, None]:
         resp = requests.get(url, headers=Facebook.HEADERS)
-        soup = BeautifulSoupHelper.create_bs(resp.text)
+        soup = HtmlParser.create_bs(resp.text)
         # TODO This is wrong: Selenium will pop up for public Facebook content as well!
         ptws = self._determine_if_private(soup, url)
         if ptws.type in [FacebookPostType.PUBLIC_POST, FacebookPostType.PUBLIC]:
@@ -219,7 +219,7 @@ class FacebookSelenium:
         else:
             LOG.debug("Current URL matches desired URL '%s', not loading again", url)
         html = self.driver.page_source
-        return BeautifulSoupHelper.create_bs(html)
+        return HtmlParser.create_bs(html)
 
     def _load_url(self, poll_freq, timeout, url):
         self.driver.get(url)
@@ -309,11 +309,7 @@ class FacebookLinkParser:
 
     @staticmethod
     def find_links_in_soup(soup: BeautifulSoup) -> List[str]:
-        anchors = soup.findAll("a")
-        filtered_anchors = list(filter(lambda a: 'href' in a.attrs, anchors))
-        links = [a['href'] for a in filtered_anchors]
-        LOG.info("Found links: %s", links)
-        return links
+        return HtmlParser.find_all_links(soup)
 
     def filter_links(self, links: List[str], remove_fbclid=True) -> Dict[str, None]:
         """
@@ -338,6 +334,7 @@ class FacebookLinkParser:
                         filtered_links[link] = None
                     break
 
+        # TODO Migrate to: HtmlParser.filter_links_by_url_fragment
         fb_redirect_links = list(filter(lambda l: FACEBOOK_REDIRECT_LINK in l, filtered_links))
         if len(fb_redirect_links) > self.fb_redirect_link_limit:
             LOG.error("Found %d Facebook redirect links. Allowed limit is: %d", len(fb_redirect_links), self.fb_redirect_link_limit)
@@ -361,16 +358,11 @@ class FacebookLinkParser:
 
     @staticmethod
     def filter_facebook_redirect_links(links: Iterable[str]) -> Set[str]:
-        filtered_links = set(filter(lambda x: FACEBOOK_REDIRECT_LINK in x, links))
-        return filtered_links
+        return HtmlParser.filter_links_by_url_fragment(links, FACEBOOK_REDIRECT_LINK)
 
     @staticmethod
     def remove_fbclid(url: str) -> str:
-        u = urlparse(url)
-        query = parse_qs(u.query, keep_blank_values=True)
-        query.pop('fbclid', None)
-        u = u._replace(query=urlencode(query, True))
-        return urlunparse(u)
+        return HtmlParser.remove_query_param_from_url(url, "fbclid")
 
     def find_links_in_html_comments(self, url: str, soup:  BeautifulSoup) -> Dict[str, None]:
         # Find in comments
@@ -387,7 +379,7 @@ class FacebookLinkParser:
         found_links = {}
         comments = soup.find_all(text=lambda text: isinstance(text, Comment))
         for comment in comments:
-            comment_soup = BeautifulSoupHelper.create_bs(comment)
+            comment_soup = HtmlParser.create_bs(comment)
             divs = comment_soup.find_all('div', attrs={'class': 'userContentWrapper'})
             for div in divs:
                 # TODO Find all links by providers as well (not just FB redirect links)
@@ -401,12 +393,7 @@ class FacebookLinkParser:
 
     @staticmethod
     def find_links_in_div(div: Tag):
-        anchors = div.findAll('a')
-        # TODO duplicated code fragment
-        filtered_anchors = list(filter(lambda a: 'href' in a.attrs, anchors))
-        links = [a['href'] for a in filtered_anchors]
-        LOG.info("Found links: %s", links)
-        return links
+        return HtmlParser.find_links_in_div(div)
 
     def find_links_with_js_rendering(self, soup, url) -> Dict[str, None]:
         links: List[str] = FacebookLinkParser.find_links_in_soup(soup)
@@ -438,29 +425,22 @@ class FacebookLinkParser:
 
         Returns:
         """
-        resp = requests.get(link)
-        LOG.debug("[orig: %s] Response of link '%s': %s", orig_url, link, resp.text)
-        match = re.search(r"document\.location\.replace\(\"(.*)\"\)", resp.text)
-        # TODO Error handling for not found group(1)
-        found_group = match.group(1)
-        unescaped_link = found_group.replace("\\/", "/")
-        LOG.debug("Link '%s' resolved to '%s'", link, unescaped_link)
-        return unescaped_link
+        new_link = HtmlParser.get_link_from_standard_redirect_page(orig_url, link)
+        if not new_link:
+            raise ValueError("Cannot find redirected link from source URL: {}".format(link))
 
     @staticmethod
     def find_private_fb_post_div(soup):
-        return soup.find_all("div", string="You must log in to continue.")
+        return HtmlParser.find_divs_with_text(soup, "You must log in to continue.")
 
     @staticmethod
     def find_private_fb_group_div(soup):
-        return soup.find_all("div", string="Private group")
+        return HtmlParser.find_divs_with_text(soup, "Private group")
 
     @staticmethod
     def find_user_content_wrapper_divs(soup):
-        usr_content_wrapper_divs = soup.findAll('div', attrs={'class': 'userContentWrapper'})
-        return usr_content_wrapper_divs
+        return HtmlParser.find_divs_with_class(soup, 'userContentWrapper')
 
     @staticmethod
     def find_divs_with_empty_class(soup):
-        divs_wo_class = soup.findAll('div', attrs={'class': None})
-        return divs_wo_class
+        return HtmlParser.find_divs_with_class(soup, None)
