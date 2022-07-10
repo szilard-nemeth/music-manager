@@ -102,7 +102,7 @@ class MusicEntityCreator:
         grouped_entity = GroupedMusicEntity(obj, src_urls)
         for ie in intermediate_entities:
             # TODO MusicEntity vs. IntermediateMusicEntity: Could be merged?
-            entity = MusicEntity(ie.title, ie.duration, ie.url, entity_type)
+            entity = MusicEntity(ie.title, ie.duration, ie.url, ie.type)
             grouped_entity.add(entity)
         return grouped_entity
 
