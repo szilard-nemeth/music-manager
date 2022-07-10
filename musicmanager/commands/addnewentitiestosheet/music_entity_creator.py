@@ -87,6 +87,7 @@ class MusicEntityCreator:
             entities: IntermediateMusicEntities = IntermediateMusicEntities(src_urls)
             intermediate_entities: IntermediateMusicEntities = self.check_links_against_providers(entities, src_urls, src_url="unknown", allow_emit=True)
             grouped_entity = MusicEntityCreator.create_from_intermediate_entities(obj, intermediate_entities)
+            CLI_LOG.info("Found links for: %s: %s", grouped_entity.source_urls, grouped_entity.entities)
             result.append(grouped_entity)
         LOG.debug("Created grouped music entities: %s", result)
         return result
@@ -94,15 +95,11 @@ class MusicEntityCreator:
     @staticmethod
     def create_from_intermediate_entities(obj, intermediate_entities: IntermediateMusicEntities) -> GroupedMusicEntity:
         src_urls = MusicEntityCreator._get_links_of_parsed_objs(obj)
-        if not intermediate_entities.entities:
-            CLI_LOG.info("Found links for: %s: %s", src_urls, [])
-
         grouped_entity = GroupedMusicEntity(obj, src_urls)
         for i_entity in intermediate_entities:
             entity_type = MusicEntityCreator._determine_entity_type(i_entity.duration)
             entity = MusicEntity(i_entity.duration, i_entity.url, entity_type)
             grouped_entity.add(entity)
-            CLI_LOG.info("Found links for: %s: %s", grouped_entity.source_urls, entity.url)
         return grouped_entity
 
     @staticmethod
