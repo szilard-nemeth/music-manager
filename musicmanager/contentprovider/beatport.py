@@ -28,5 +28,5 @@ class Beatport(ContentProviderAbs):
     def emit_links(self, url):
         return []
 
-    def determine_duration_by_url(self, url: str) -> IntermediateMusicEntity:
+    def _determine_duration_by_url(self, url: str) -> IntermediateMusicEntity:
         return IntermediateMusicEntity(Duration.unknown(), url)

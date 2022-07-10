@@ -28,8 +28,8 @@ class Mixcloud(ContentProviderAbs):
 
     def create_intermediate_entity(self, url: str) -> IntermediateMusicEntity:
         # TODO
-        duration = self.determine_duration_by_url(url)
+        duration = self._determine_duration_by_url(url)
         return IntermediateMusicEntity(duration, url)
 
-    def determine_duration_by_url(self, url: str) -> Duration:
+    def _determine_duration_by_url(self, url: str) -> Duration:
         return Duration.unknown()

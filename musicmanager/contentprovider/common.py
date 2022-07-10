@@ -34,7 +34,7 @@ class ContentProviderAbs(ABC):
         pass
 
     @abstractmethod
-    def determine_duration_by_url(self, url: str) -> Duration:
+    def _determine_duration_by_url(self, url: str) -> Duration:
         pass
 
     @abstractmethod

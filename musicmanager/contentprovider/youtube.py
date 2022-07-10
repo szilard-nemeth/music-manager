@@ -35,18 +35,18 @@ class Youtube(ContentProviderAbs):
 
     def create_intermediate_entity(self, url: str) -> IntermediateMusicEntity:
         # TODO
-        duration = self.determine_duration_by_url(url)
+        duration = self._determine_duration_by_url(url)
         return IntermediateMusicEntity(duration, url)
 
-    def determine_duration_by_url(self, url: str) -> Duration:
+    def _determine_duration_by_url(self, url: str) -> Duration:
         # TODO Move this check elsewhere
         if url is None:
             url = ""
-        duration: Duration = self.determine_duration(url)
+        duration: Duration = self._determine_duration(url)
         return duration
 
     @staticmethod
-    def determine_duration(url):
+    def _determine_duration(url):
         if YOUTUBE_CHANNEL_URL_FRAGMENT in url:
             return Duration.unknown()
         video_info = Youtube._get_youtube_video_info(url)
