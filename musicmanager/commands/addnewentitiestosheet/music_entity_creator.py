@@ -88,6 +88,7 @@ class MusicEntityCreator:
             LOG.info("Found links from source file: %s", src_urls)
             entities: IntermediateMusicEntities = IntermediateMusicEntities(src_urls)
             intermediate_entities: IntermediateMusicEntities = self.check_links_against_providers(entities, src_urls, src_url="unknown", allow_emit=True)
+            # TODO Also group for same title / same URL --> e.g. file with duplicated lines
             grouped_entity = MusicEntityCreator.create_from_intermediate_entities(obj, intermediate_entities)
             CLI_LOG.info("Found links for: %s: %s", grouped_entity.source_urls, grouped_entity.entities)
             result.append(grouped_entity)

@@ -1,3 +1,4 @@
+import re
 from typing import Iterable
 
 from string_utils import auto_str
@@ -12,6 +13,8 @@ SOUNDCLOUD_GOOGLE_URL = "soundcloud.app.goo.gl"
 
 @auto_str
 class SoundCloud(ContentProviderAbs):
+    HTML_TITLE_PATTERN = re.compile(r"Stream (.*) by(.*) \| Listen online for free on SoundCloud")
+
     @classmethod
     def url_matchers(cls) -> Iterable[str]:
         return [SOUNDCLOUD_NORMAL_URL, SOUNDCLOUD_GOOGLE_URL]
@@ -33,7 +36,16 @@ class SoundCloud(ContentProviderAbs):
         return IntermediateMusicEntity(title, duration, url)
 
     def _determine_title_by_url(self, url: str) -> str:
-        return HtmlParser.get_title_from_url(url)
+        # Example HTML title:
+        # Stream Worlds Within Mix [Endangered] 040722_Berlin by Brian Cid | Listen online for free on SoundCloud
+        # Where title is: 'Worlds Within Mix [Endangered] 040722_Berlin'
+        html_title = HtmlParser.get_title_from_url(url)
+        m = re.match(SoundCloud.HTML_TITLE_PATTERN, html_title)
+        if len(m.groups()) != 2:
+            raise ValueError("Unexpected Soundcloud HTML title: {}".format(html_title))
+        title = m.group(1)
+        author = m.group(2)
+        return title
 
     def _determine_duration_by_url(self, url: str) -> Duration:
         return Duration.unknown()
