@@ -36,7 +36,8 @@ class Youtube(ContentProviderAbs):
     def create_intermediate_entity(self, url: str) -> IntermediateMusicEntity:
         title = self._determine_title_by_url(url)
         duration = self._determine_duration_by_url(url)
-        return IntermediateMusicEntity(title, duration, url)
+        ent_type = self._determine_entity_type(duration)
+        return IntermediateMusicEntity(title, duration, ent_type, url)
 
     def _determine_title_by_url(self, url: str) -> str:
         return HtmlParser.get_title_from_url(url)

@@ -10,7 +10,7 @@ from bs4 import BeautifulSoup, Tag
 from requests import Response
 from requests_html import HTMLSession
 
-from musicmanager.commands.addnewentitiestosheet.music_entity_creator import IntermediateMusicEntity
+from musicmanager.commands.addnewentitiestosheet.music_entity_creator import IntermediateMusicEntity, MusicEntityType
 from musicmanager.common import Duration
 
 LOG = logging.getLogger(__name__)
@@ -121,6 +121,15 @@ class ContentProviderAbs(ABC):
     @abstractmethod
     def url_matchers(cls) -> Iterable[str]:
         pass
+
+    @classmethod
+    def _determine_entity_type(cls, duration):
+        entity_type = MusicEntityType.UNKNOWN
+        if 0 < duration.minutes <= 12:
+            entity_type = MusicEntityType.TRACK
+        elif duration.minutes > 12:
+            entity_type = MusicEntityType.MIX
+        return entity_type
 
 
 class JavaScriptRenderer(Enum):

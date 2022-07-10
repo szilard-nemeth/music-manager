@@ -45,6 +45,7 @@ class GroupedMusicEntity:
 class IntermediateMusicEntity:
     title: str
     duration: Duration
+    type: MusicEntityType
     url: str
     src_url: str = None
 
@@ -100,7 +101,7 @@ class MusicEntityCreator:
         src_urls = MusicEntityCreator._get_links_of_parsed_objs(obj)
         grouped_entity = GroupedMusicEntity(obj, src_urls)
         for ie in intermediate_entities:
-            entity_type = MusicEntityCreator._determine_entity_type(ie.duration)
+            # TODO MusicEntity vs. IntermediateMusicEntity: Could be merged?
             entity = MusicEntity(ie.title, ie.duration, ie.url, entity_type)
             grouped_entity.add(entity)
         return grouped_entity
@@ -110,15 +111,6 @@ class MusicEntityCreator:
         links = [obj.link_1, obj.link_2, obj.link_3]
         links = list(filter(None, links))
         return links
-
-    @staticmethod
-    def _determine_entity_type(duration):
-        entity_type = MusicEntityType.UNKNOWN
-        if 0 < duration.minutes <= 12:
-            entity_type = MusicEntityType.TRACK
-        elif duration.minutes > 12:
-            entity_type = MusicEntityType.MIX
-        return entity_type
 
     def check_links_against_providers(self, entities: IntermediateMusicEntities, links: Iterable[str], src_url: str, allow_emit=False) -> IntermediateMusicEntities:
         for url in links:
