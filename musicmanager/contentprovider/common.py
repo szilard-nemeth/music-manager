@@ -70,7 +70,6 @@ class JSRenderer:
         elif self.use_selenium:
             return self.fb_selenium.load_url_as_soup(url)
 
-
     @staticmethod
     def _render_with_requests_html(url):
         session = HTMLSession()
