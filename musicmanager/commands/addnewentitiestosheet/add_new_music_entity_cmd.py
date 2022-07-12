@@ -358,7 +358,7 @@ class AddNewMusicEntityCommand(CommandAbs):
         remainders = list(filter(lambda x: x.entity_type not in entity_types or
                                            x.entity_type == MusicEntityType.UNKNOWN, music_entities))
 
-        # TODO raise exception if soundcloud Music entity type is implemented
+        # TODO raise exception if soundcloud Music entity type is fully implemented
         # if remainders:
         #     raise ValueError("Some music entities are having unknown types: {}".format(remainders))
         return res
