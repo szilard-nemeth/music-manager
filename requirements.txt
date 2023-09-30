@@ -4,8 +4,8 @@ google-auth-oauthlib==0.4.0
 
 gspread
 oauth2client
-git+https://github.com/szilard-nemeth/python-commons.git
-git+https://github.com/szilard-nemeth/google-api-wrapper.git
+python-common-lib==1.0.6
+google-api-wrapper2===1.0.5
 setuptools~=59.5.0
 httplib2
 dataclasses-json

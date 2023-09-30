@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import List, Iterable, Dict, Any, Set
 
-from string_utils import auto_str
+from pythoncommons.string_utils import auto_str
 
 from musicmanager.common import Duration, CLI_LOG
 from musicmanager.services.services import URLResolutionServices

@@ -1,7 +1,7 @@
 import logging
 from typing import Iterable
 
-from string_utils import auto_str
+from pythoncommons.string_utils import auto_str
 
 from musicmanager.commands.addnewentitiestosheet.music_entity_creator import IntermediateMusicEntity
 from musicmanager.common import Duration

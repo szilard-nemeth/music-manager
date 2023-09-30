@@ -3,7 +3,7 @@ from datetime import timedelta
 from typing import Iterable
 
 import youtube_dl
-from string_utils import auto_str
+from pythoncommons.string_utils import auto_str
 
 from musicmanager.commands.addnewentitiestosheet.music_entity_creator import IntermediateMusicEntity
 from musicmanager.common import Duration
