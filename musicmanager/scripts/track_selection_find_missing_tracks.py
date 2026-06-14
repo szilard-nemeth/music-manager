@@ -113,17 +113,17 @@ class TrackIndex:
 
     def print_duplicates(self):
         print("Duplicates: ")
+        # TODO This could be used as a duplicate file remover
         for k, v in self._duplicates.items():
             print(f"{k}: {v}")
 
 
 class GoogleSheetFetcher:
     @staticmethod
-    def fetch_tracks(spreadsheet_id):
-        # TODO should fetch from multiple sheets
+    def fetch_tracks(spreadsheet_id, sheet_name: str):
         url = (
             f"https://docs.google.com/spreadsheets/d/"
-            f"{spreadsheet_id}/gviz/tq?tqx=out:csv&sheet={SHEET_NAME}"
+            f"{spreadsheet_id}/gviz/tq?tqx=out:csv&sheet={sheet_name}"
         )
 
         response = requests.get(url)
@@ -177,8 +177,10 @@ def main():
     indexer = TrackIndexer()
     index: TrackIndex = indexer.build_index()
 
-    tracks = GoogleSheetFetcher.fetch_tracks(SPREADSHEET_ID)
-    find_matching_tracks(tracks, index)
+    old_tracks = GoogleSheetFetcher.fetch_tracks(SPREADSHEET_ID, "OLD TRACKS")
+    new_tracks = GoogleSheetFetcher.fetch_tracks(SPREADSHEET_ID, "NEW TRACKS")
+    all_tracks = old_tracks + new_tracks
+    find_matching_tracks(all_tracks, index)
 
 if __name__ == '__main__':
     main()
