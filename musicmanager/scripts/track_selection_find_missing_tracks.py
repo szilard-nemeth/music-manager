@@ -51,15 +51,45 @@ class TrackIndexer:
         self._index = None
 
     def build_index(self):
+        path = self._validate_path()
         self._index = TrackIndex()
-        for file in Path(MUSIC_DIR).rglob("*"):
+
+        files = list(path.rglob("*"))
+        indexed_count = 0
+        for file in files:
+            if file.is_dir():
+                continue
+
             if file.suffix.lower() not in EXTENSIONS:
                 continue
 
             normalized_name = TrackTitleHelpers.normalize(file.stem)
             self._index.add_file(normalized_name, file)
-        print(f"Indexed {len(self._index.normalized_names)} music files")
+            indexed_count += 1
+
+        if indexed_count == 0:
+            raise RuntimeError(
+                f"Directory scanned but no valid audio files found in: {path}"
+            )
+
+        print(f"Indexed {indexed_count} music files")
         return self._index
+
+    @staticmethod
+    def _validate_path() -> Path:
+        path = Path(MUSIC_DIR)
+
+        if not path.exists():
+            raise FileNotFoundError(f"MUSIC_DIR does not exist: {path}")
+
+        files = list(path.rglob("*"))
+
+        if not files:
+            raise RuntimeError(
+                f"No files found in MUSIC_DIR: {path}. "
+                "Check path or permissions."
+            )
+        return path
 
 
 @dataclass
