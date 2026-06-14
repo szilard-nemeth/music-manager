@@ -3,5 +3,5 @@
 venv
 logs
 /throwaway/selenium/
-/musicmanager/selenium/
+/music_manager/selenium/
 /throwaway/geckodriver.log

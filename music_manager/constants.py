@@ -1,6 +1,6 @@
 from pythoncommons.file_utils import FileUtils
 
-PROJECT_NAME = "musicmanager"
+PROJECT_NAME = "music_manager"
 DEFAULT_FIELD_PREFIX_SEPARATOR = ":"
 REPO_ROOT_DIRNAME = "music-manager"
 

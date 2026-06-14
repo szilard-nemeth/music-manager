@@ -3,9 +3,9 @@ from typing import Iterable
 
 from pythoncommons.string_utils import auto_str
 
-from musicmanager.commands.addnewentitiestosheet.music_entity_creator import IntermediateMusicEntity
-from musicmanager.common import Duration
-from musicmanager.contentprovider.common import ContentProviderAbs, HtmlParser
+from music_manager.commands.addnewentitiestosheet.music_entity_creator import IntermediateMusicEntity
+from music_manager.common import Duration
+from music_manager.contentprovider.common import ContentProviderAbs, HtmlParser
 
 import logging
 

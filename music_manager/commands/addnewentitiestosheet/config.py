@@ -8,7 +8,7 @@ import typing
 from dataclasses_json import dataclass_json, LetterCase
 from pythoncommons.file_parser.parser_config_reader import GREEDY_FIELD_POSTFIX
 
-from musicmanager.commands.addnewentitiestosheet.music_entity_creator import MusicEntityType
+from music_manager.commands.addnewentitiestosheet.music_entity_creator import MusicEntityType
 
 LOG = logging.getLogger(__name__)
 

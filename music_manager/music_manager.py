@@ -10,11 +10,11 @@ from pythoncommons.logging_setup import SimpleLoggingSetupConfig, SimpleLoggingS
 from pythoncommons.os_utils import OsUtils
 from pythoncommons.project_utils import ProjectUtils, ProjectRootDeterminationStrategy
 
-from musicmanager.commands.addnewentitiestosheet.add_new_music_entity_cmd import AddNewMusicEntityCommand
-from musicmanager.commands_common import GSheetArguments
-from musicmanager.common import MusicManagerEnvVar
-from musicmanager.constants import PROJECT_NAME
-from musicmanager.music_manager_config import MusicManagerConfig
+from music_manager.commands.addnewentitiestosheet.add_new_music_entity_cmd import AddNewMusicEntityCommand
+from music_manager.commands_common import GSheetArguments
+from music_manager.common import MusicManagerEnvVar
+from music_manager.constants import PROJECT_NAME
+from music_manager.music_manager_config import MusicManagerConfig
 
 LOG = logging.getLogger(__name__)
 
