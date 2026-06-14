@@ -31,16 +31,15 @@ MIN_SCORE = 90
 class TrackTitleHelpers:
     NOISE_WORDS = {
         "remix", "edit", "mix", "extended", "radio", "version",
-        "remastered", "club", "live", "stereo"
+        "remastered", "club", "live", "stereo", "feat", "featuring"
     }
 
     @staticmethod
     def normalize(text: str) -> str:
         text = text.lower()
 
-        # remove bracketed content properly
         text = re.sub(r"\[[^]]*]", "", text)
-        text = re.sub(r"\([^)]*\)", "", text)  # FIXED BUG HERE
+        text = re.sub(r"\([^)]*\)", "", text)
 
         text = re.sub(r"[^a-z0-9]+", " ", text)
 
