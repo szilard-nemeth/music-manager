@@ -14,3 +14,32 @@ exclude = '''
   | dist
 )/
 '''
+
+[project]
+name = "music-manager"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "szilardnemeth",email = "szilard.nemeth88@gmail.com"}
+]
+readme = "README.md"
+requires-python = ">=3.12,<4.0"
+dependencies = [
+    "google-auth-oauthlib (>=0.4.1,<1.0.0)",
+    "httplib2 (>=0.31,<1.0)",
+    "typing-extensions (>=4.15,<5.0)",
+    "yt-dlp (>=2024,<2026)",
+    "beautifulsoup4 (>=4.12,<5.0)",
+    "requests (>=2.34,<3.0)",
+    "selenium (>=4.44,<5.0)",
+    "appdirs (>=1.4,<2.0)",
+    "browser-cookie3 (>=0.20,<1.0)",
+    "gspread (>=6.2,<7.0)",
+    "python-common-lib (==1.0.24)",
+    "dataclasses-json (>=0.6,<1.0)",
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
