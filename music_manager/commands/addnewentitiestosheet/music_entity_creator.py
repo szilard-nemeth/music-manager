@@ -5,8 +5,8 @@ from typing import List, Iterable, Dict, Any, Set
 
 from pythoncommons.string_utils import auto_str
 
-from musicmanager.common import Duration, CLI_LOG
-from musicmanager.services.services import URLResolutionServices
+from music_manager.common import Duration, CLI_LOG
+from music_manager.services.services import URLResolutionServices
 
 LOG = logging.getLogger(__name__)
 

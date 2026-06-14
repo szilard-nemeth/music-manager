@@ -9,9 +9,9 @@ from pythoncommons.file_utils import FileUtils, FindResultType
 from pythoncommons.object_utils import ObjUtils
 from pythoncommons.project_utils import SimpleProjectUtils
 
-from musicmanager.commands.addnewentitiestosheet.config import ParserConfig, Fields
-from musicmanager.commands.addnewentitiestosheet.parser import MusicEntityInputFileParser
-from musicmanager.constants import LocalDirs
+from music_manager.commands.addnewentitiestosheet.config import ParserConfig, Fields
+from music_manager.commands.addnewentitiestosheet.parser import MusicEntityInputFileParser
+from music_manager.constants import LocalDirs
 
 A_REAL_LINK = "https://soundcloud.com/sebabusto/sebastian-busto-moonlight-radio-show-noviembre-2021?in=sebabusto/sets/moonlight-radio-show"
 
@@ -123,7 +123,7 @@ class NewMixesToListenInputFileParserTest(unittest.TestCase):
                                                                               config_type=GenericLineParserConfig)
         parser = MusicEntityInputFileParser(config_reader)
 
-        from musicmanager.commands.addnewentitiestosheet.parser import ParsedMusicEntity
+        from music_manager.commands.addnewentitiestosheet.parser import ParsedMusicEntity
         self.parsed_obj_dataclass = ParsedMusicEntity
         self.all_field_names: Set[str] = set(parser.extended_config.fields.dataclass_fields.keys())
         self.parsed_objs = parser.parse(TEXTFILE)

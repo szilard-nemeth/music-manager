@@ -2,7 +2,7 @@ import logging
 from abc import ABC, abstractmethod
 from enum import Enum
 
-from musicmanager.constants import LATEST_DATA_ZIP_LINK_NAME
+from music_manager.constants import LATEST_DATA_ZIP_LINK_NAME
 
 LOG = logging.getLogger(__name__)
 

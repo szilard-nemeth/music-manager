@@ -11,20 +11,20 @@ from pythoncommons.file_utils import FindResultType, FileUtils
 from pythoncommons.project_utils import SimpleProjectUtils
 from pythoncommons.result_printer import BasicResultPrinter
 
-import musicmanager.commands.addnewentitiestosheet.parser as p
-from musicmanager.commands.addnewentitiestosheet.config import ParserConfig, Fields, Sheet
-from musicmanager.commands.addnewentitiestosheet.music_entity_creator import MusicEntityCreator, GroupedMusicEntity, \
+import music_manager.commands.addnewentitiestosheet.parser as p
+from music_manager.commands.addnewentitiestosheet.config import ParserConfig, Fields, Sheet
+from music_manager.commands.addnewentitiestosheet.music_entity_creator import MusicEntityCreator, GroupedMusicEntity, \
     MusicEntityType
-from musicmanager.commands.addnewentitiestosheet.parser import MusicEntityInputFileParser
-from musicmanager.commands_common import CommandType, CommandAbs
-from musicmanager.constants import LocalDirs
-from musicmanager.contentprovider.beatport import Beatport
-from musicmanager.contentprovider.common import JavaScriptRenderer, JSRenderer, HtmlParser
-from musicmanager.contentprovider.facebook import Facebook, FacebookLinkParser, FacebookSelenium
-from musicmanager.contentprovider.mixcloud import Mixcloud
-from musicmanager.contentprovider.soundcloud import SoundCloud
-from musicmanager.contentprovider.youtube import Youtube
-from musicmanager.statistics import RowStats
+from music_manager.commands.addnewentitiestosheet.parser import MusicEntityInputFileParser
+from music_manager.commands_common import CommandType, CommandAbs
+from music_manager.constants import LocalDirs
+from music_manager.contentprovider.beatport import Beatport
+from music_manager.contentprovider.common import JavaScriptRenderer, JSRenderer, HtmlParser
+from music_manager.contentprovider.facebook import Facebook, FacebookLinkParser, FacebookSelenium
+from music_manager.contentprovider.mixcloud import Mixcloud
+from music_manager.contentprovider.soundcloud import SoundCloud
+from music_manager.contentprovider.youtube import Youtube
+from music_manager.statistics import RowStats
 
 ROWS_TO_FETCH = 3000
 

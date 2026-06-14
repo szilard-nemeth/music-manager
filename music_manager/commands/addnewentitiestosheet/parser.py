@@ -6,7 +6,7 @@ from typing import Dict
 from pythoncommons.file_parser.input_file_parser import DiagnosticConfig, GenericLineByLineParser
 from pythoncommons.file_parser.parser_config_reader import ParserConfigReader
 
-from musicmanager.commands.addnewentitiestosheet.config import ParserConfig
+from music_manager.commands.addnewentitiestosheet.config import ParserConfig
 
 LOG = logging.getLogger(__name__)
 module = sys.modules[__name__]
