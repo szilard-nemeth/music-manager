@@ -29,17 +29,34 @@ EXTENSIONS = {
 MIN_SCORE = 90
 
 class TrackTitleHelpers:
+    NOISE_WORDS = {
+        "remix", "edit", "mix", "extended", "radio", "version",
+        "remastered", "club", "live", "stereo"
+    }
+
     @staticmethod
     def normalize(text: str) -> str:
         text = text.lower()
 
-        # remove bracketed mix/version info
+        # remove bracketed content properly
         text = re.sub(r"\[[^]]*]", "", text)
-        text = re.sub(r"\([^)]*]", "", text)
+        text = re.sub(r"\([^)]*\)", "", text)  # FIXED BUG HERE
 
-        # remove punctuation
         text = re.sub(r"[^a-z0-9]+", " ", text)
-        return " ".join(text.split())
+
+        tokens = [
+            t for t in text.split()
+            if t not in TrackTitleHelpers.NOISE_WORDS
+        ]
+
+        return " ".join(tokens)
+
+    @staticmethod
+    def split(track_name: str):
+        parts = track_name.split(" - ", 1)
+        if len(parts) == 2:
+            return parts[0], parts[1]
+        return "", track_name
 
     @staticmethod
     def extract_title(track_name: str) -> str:
