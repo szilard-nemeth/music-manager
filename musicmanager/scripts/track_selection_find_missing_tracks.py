@@ -162,27 +162,47 @@ def find_matching_tracks(tracks: List[str], index: TrackIndex) -> None:
     found_count = 0
 
     file_map = index.file_map
+    indexed_names = index.normalized_names
+
     for track in tracks:
-        title = TrackTitleHelpers.normalize(TrackTitleHelpers.extract_title(track))
+        artist, title = TrackTitleHelpers.split(track)
 
-        match = process.extractOne(
-            title,
-            index.normalized_names,
-            scorer=fuzz.token_set_ratio,
-            score_cutoff=MIN_SCORE,
-        )
+        title_norm = TrackTitleHelpers.normalize(title)
+        artist_norm = TrackTitleHelpers.normalize(artist)
 
-        if match:
-            matched_name, score, _ = match
+        best_match = None
+        best_score = 0
 
+        for candidate in indexed_names:
+            # split candidate back into structure-free form
+            cand_score = fuzz.WRatio(title_norm, candidate)
+
+            # HARD FILTER: must share at least 2 meaningful tokens
+            query_tokens = set(title_norm.split())
+            cand_tokens = set(candidate.split())
+
+            token_overlap = len(query_tokens & cand_tokens)
+
+            if token_overlap < 2:
+                continue
+
+            # optional artist bonus
+            artist_score = 0
+            if artist_norm:
+                artist_score = fuzz.WRatio(artist_norm, candidate)
+
+            score = (cand_score * 0.85) + (artist_score * 0.15)
+
+            if score > best_score:
+                best_score = score
+                best_match = candidate
+
+        if best_match and best_score >= MIN_SCORE:
             print(
                 f"FOUND: {track}\n"
-                f"    -> {file_map[matched_name]} "
-                f"({score:.0f}%)"
+                f"    -> {file_map[best_match]} ({best_score:.0f}%)"
             )
-
             found_count += 1
-
         else:
             print(f"NOT FOUND: {track}")
 
