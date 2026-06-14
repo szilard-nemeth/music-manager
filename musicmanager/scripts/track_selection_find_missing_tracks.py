@@ -1,8 +1,9 @@
+from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 import re
 import csv
-from typing import List
+from typing import List, Dict
 
 import requests
 from rapidfuzz import process, fuzz
@@ -14,7 +15,7 @@ from rapidfuzz import process, fuzz
 SPREADSHEET_ID = "1F2KvSq53AAgQg1wy0puytd0qWXlYu_R9OjhbzcwH2fc"
 SHEET_NAME = "Sheet1"  # adjust if needed
 
-MUSIC_DIR = "'/Volumes/NO NAME/music-library'"
+MUSIC_DIR = "/Volumes/NO NAME/music-library"
 
 EXTENSIONS = {
     ".mp3",
@@ -73,6 +74,8 @@ class TrackIndexer:
             )
 
         print(f"Indexed {indexed_count} music files")
+        self._index.print_duplicates()
+
         return self._index
 
     @staticmethod
@@ -96,15 +99,22 @@ class TrackIndexer:
 class TrackIndex:
     def __init__(self):
         self.file_map = {}
+        self._duplicates: Dict[str, List[Path]] = defaultdict(list)
 
     def add_file(self, normalized_name: str, file: Path):
         if normalized_name in self.file_map:
-            raise ValueError("Duplicate file name: " + normalized_name)
+            self._duplicates[normalized_name].append(self.file_map[normalized_name])
+            self._duplicates[normalized_name].append(file)
         self.file_map[normalized_name] = file
 
     @property
     def normalized_names(self):
         return list(self.file_map.keys())
+
+    def print_duplicates(self):
+        print("Duplicates: ")
+        for k, v in self._duplicates.items():
+            print(f"{k}: {v}")
 
 
 class GoogleSheetFetcher:
@@ -140,7 +150,7 @@ def find_matching_tracks(tracks: List[str], index: TrackIndex) -> None:
 
         match = process.extractOne(
             title,
-            index.file_map,
+            index.normalized_names,
             scorer=fuzz.token_set_ratio,
             score_cutoff=MIN_SCORE,
         )
@@ -149,15 +159,15 @@ def find_matching_tracks(tracks: List[str], index: TrackIndex) -> None:
             matched_name, score, _ = match
 
             print(
-                f"✓ {track}\n"
-                f"    -> {file_map[matched_name].name} "
+                f"FOUND: {track}\n"
+                f"    -> {file_map[matched_name]} "
                 f"({score:.0f}%)"
             )
 
             found_count += 1
 
         else:
-            print(f"✗ {track}")
+            print(f"NOT FOUND: {track}")
 
     print()
     print(f"{found_count}/{len(tracks)} tracks found")
