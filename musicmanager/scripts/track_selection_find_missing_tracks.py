@@ -1,6 +1,9 @@
+from dataclasses import dataclass
 from pathlib import Path
 import re
 import csv
+from typing import List
+
 import requests
 from rapidfuzz import process, fuzz
 
@@ -24,88 +27,90 @@ EXTENSIONS = {
 
 MIN_SCORE = 90
 
+class TrackTitleHelpers:
+    @staticmethod
+    def normalize(text: str) -> str:
+        text = text.lower()
 
-# ---------------------------
-# HELPERS
-# ---------------------------
+        # remove bracketed mix/version info
+        text = re.sub(r"\[[^]]*]", "", text)
+        text = re.sub(r"\([^)]*]", "", text)
 
-def normalize(text: str) -> str:
-    text = text.lower()
+        # remove punctuation
+        text = re.sub(r"[^a-z0-9]+", " ", text)
+        return " ".join(text.split())
 
-    # remove bracketed mix/version info
-    text = re.sub(r"\[[^]]*]", "", text)
-    text = re.sub(r"\([^)]*]", "", text)
-
-    # remove punctuation
-    text = re.sub(r"[^a-z0-9]+", " ", text)
-
-    return " ".join(text.split())
-
-
-def extract_title(track_name: str) -> str:
-    parts = track_name.split(" - ", 1)
-    return parts[1] if len(parts) == 2 else track_name
+    @staticmethod
+    def extract_title(track_name: str) -> str:
+        parts = track_name.split(" - ", 1)
+        return parts[1] if len(parts) == 2 else track_name
 
 
-# ---------------------------
-# FETCH TRACKS FROM GOOGLE SHEET
-# ---------------------------
+class TrackIndexer:
+    def __init__(self):
+        self._index = None
 
-def fetch_tracks_from_google_sheet():
-    global url, reader, tracks
-    url = (
-        f"https://docs.google.com/spreadsheets/d/"
-        f"{SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet={SHEET_NAME}"
-    )
+    def build_index(self):
+        self._index = TrackIndex()
+        for file in Path(MUSIC_DIR).rglob("*"):
+            if file.suffix.lower() not in EXTENSIONS:
+                continue
 
-    response = requests.get(url)
-    response.raise_for_status()
-
-    reader = csv.reader(response.text.splitlines())
-
-    tracks = []
-
-    for row in reader:
-        if row and row[0].strip():
-            tracks.append(row[0].strip())
-
-    print(f"Loaded {len(tracks)} tracks from Google Sheet")
+            normalized_name = TrackTitleHelpers.normalize(file.stem)
+            self._index.add_file(normalized_name, file)
+        print(f"Indexed {len(self._index.normalized_names)} music files")
+        return self._index
 
 
-# ---------------------------
-# BUILD INDEX
-# ---------------------------
+@dataclass
+class TrackIndex:
+    def __init__(self):
+        self.file_map = {}
 
-def build_index():
-    global file_map, choices
-    file_map = {}
+    def add_file(self, normalized_name: str, file: Path):
+        if normalized_name in self.file_map:
+            raise ValueError("Duplicate file name: " + normalized_name)
+        self.file_map[normalized_name] = file
 
-    for file in Path(MUSIC_DIR).rglob("*"):
-        if file.suffix.lower() not in EXTENSIONS:
-            continue
-
-        normalized = normalize(file.stem)
-        file_map[normalized] = file
-
-    choices = list(file_map.keys())
-
-    print(f"Indexed {len(choices)} music files")
+    @property
+    def normalized_names(self):
+        return list(self.file_map.keys())
 
 
-# ---------------------------
-# MATCH
-# ---------------------------
+class GoogleSheetFetcher:
+    @staticmethod
+    def fetch_tracks(spreadsheet_id):
+        # TODO should fetch from multiple sheets
+        url = (
+            f"https://docs.google.com/spreadsheets/d/"
+            f"{spreadsheet_id}/gviz/tq?tqx=out:csv&sheet={SHEET_NAME}"
+        )
 
-def find_matching_tracks():
-    global title, match
+        response = requests.get(url)
+        response.raise_for_status()
+
+        reader = csv.reader(response.text.splitlines())
+
+        tracks = []
+
+        for row in reader:
+            if row and row[0].strip():
+                tracks.append(row[0].strip())
+
+        print(f"Loaded {len(tracks)} tracks from Google Sheet")
+        return tracks
+
+
+def find_matching_tracks(tracks: List[str], index: TrackIndex) -> None:
     found_count = 0
 
+    file_map = index.file_map
     for track in tracks:
-        title = normalize(extract_title(track))
+        title = TrackTitleHelpers.normalize(TrackTitleHelpers.extract_title(track))
 
         match = process.extractOne(
             title,
-            choices,
+            index.file_map,
             scorer=fuzz.token_set_ratio,
             score_cutoff=MIN_SCORE,
         )
@@ -129,9 +134,11 @@ def find_matching_tracks():
 
 
 def main():
-    fetch_tracks_from_google_sheet()
-    build_index()
-    find_matching_tracks()
+    indexer = TrackIndexer()
+    index: TrackIndex = indexer.build_index()
+
+    tracks = GoogleSheetFetcher.fetch_tracks(SPREADSHEET_ID)
+    find_matching_tracks(tracks, index)
 
 if __name__ == '__main__':
     main()
