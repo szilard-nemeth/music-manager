@@ -192,11 +192,27 @@ class GoogleSheetFetcher:
 # MATCHER
 # ---------------------------
 
+def artist_conflict(query_artist: str, candidate_artist: str) -> bool:
+    if not query_artist:
+        return False
+
+    query = set(query_artist.split())
+    candidate = set(candidate_artist.split())
+
+    # no overlap at all → strong signal mismatch
+    return len(query & candidate) == 0
+
+
 def match_score(query, entry: TrackEntry, query_artist: str) -> float:
     query_title = TrackTitleHelpers.core_title(query)
     query_artist = TrackTitleHelpers.normalize(query_artist)
 
     cand_title = entry.core_title
+    cand_artist = entry.artist
+
+    # Hard block if artist would not match
+    if artist_conflict(query_artist, cand_artist):
+        return 0
 
     # 🚨 HARD RULE: single-token titles cannot match loosely
     if TrackTitleHelpers.is_single_token_title(query_title):
