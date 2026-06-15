@@ -35,6 +35,10 @@ class TrackTitleHelpers:
         "reimagined", "version", "dub", "reconstruction"
     }
 
+    SUFFIX_VERSION_TYPE_WORDS = VERSION_WORDS
+
+    BASE_VERSION_WORDS = {"original"}
+
     @staticmethod
     def normalize(text: str) -> str:
         text = text.lower()
@@ -90,9 +94,12 @@ class TrackTitleHelpers:
         suffix = re.sub(r"[^a-z0-9]+", " ", suffix)
         tokens = [
             t for t in suffix.split()
-            if t not in TrackTitleHelpers.NOISE_WORDS
-            and t not in TrackTitleHelpers.VERSION_WORDS
+            if t not in TrackTitleHelpers.SUFFIX_VERSION_TYPE_WORDS
         ]
+
+        if not tokens or all(t in TrackTitleHelpers.BASE_VERSION_WORDS for t in tokens):
+            return ""
+
         return " ".join(tokens)
 
 

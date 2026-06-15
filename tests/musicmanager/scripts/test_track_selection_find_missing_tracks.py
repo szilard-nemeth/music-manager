@@ -42,6 +42,26 @@ class TrackSelectionFindMissingTracksTest(unittest.TestCase):
         self.assertFalse(version_conflict(query_title, TrackTitleHelpers.split(library_track)[1]))
         self.assertGreaterEqual(match_score(query_title, entry, query_artist), MIN_SCORE)
 
+    def test_plain_title_matches_original_mix_in_library(self):
+        query_track = "Matter - Embrace"
+        library_track = "Matter - Embrace (Original Mix)"
+
+        query_artist, query_title = TrackTitleHelpers.split(query_track)
+        entry = make_entry(library_track)
+
+        self.assertFalse(version_conflict(query_title, TrackTitleHelpers.split(library_track)[1]))
+        self.assertGreaterEqual(match_score(query_title, entry, query_artist), MIN_SCORE)
+
+    def test_plain_title_does_not_match_extended_mix_in_library(self):
+        query_track = "Matter - Embrace"
+        library_track = "Matter - Embrace (Extended Mix)"
+
+        query_artist, query_title = TrackTitleHelpers.split(query_track)
+        entry = make_entry(library_track)
+
+        self.assertTrue(version_conflict(query_title, TrackTitleHelpers.split(library_track)[1]))
+        self.assertLess(match_score(query_title, entry, query_artist), MIN_SCORE)
+
 
 if __name__ == "__main__":
     unittest.main()
