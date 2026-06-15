@@ -238,100 +238,104 @@ class GoogleSheetFetcher:
 # MATCHER
 # ---------------------------
 
-def artist_conflict(query_artist: str, candidate_artist: str) -> bool:
-    if not query_artist:
-        return False
+class TrackMatcher:
 
-    query = set(query_artist.split())
-    candidate = set(candidate_artist.split())
+    @staticmethod
+    def artist_conflict(query_artist: str, candidate_artist: str) -> bool:
+        if not query_artist:
+            return False
 
-    # no overlap at all → strong signal mismatch
-    return len(query & candidate) == 0
+        query = set(query_artist.split())
+        candidate = set(candidate_artist.split())
 
-def version_conflict(q: str, c: str) -> bool:
-    q_suffix = TrackTitleHelpers.extract_parenthetical_suffix(q)
-    c_suffix = TrackTitleHelpers.extract_parenthetical_suffix(c)
+        # no overlap at all → strong signal mismatch
+        return len(query & candidate) == 0
 
-    if q_suffix != c_suffix and (q_suffix or c_suffix):
-        return True
+    @staticmethod
+    def version_conflict(q: str, c: str) -> bool:
+        q_suffix = TrackTitleHelpers.extract_parenthetical_suffix(q)
+        c_suffix = TrackTitleHelpers.extract_parenthetical_suffix(c)
 
-    qv = TrackTitleHelpers.extract_version(q)
-    cv = TrackTitleHelpers.extract_version(c)
+        if q_suffix != c_suffix and (q_suffix or c_suffix):
+            return True
 
-    # if both have version tags but they differ → conflict
-    return bool(qv and cv and qv != cv)
+        qv = TrackTitleHelpers.extract_version(q)
+        cv = TrackTitleHelpers.extract_version(c)
 
+        # if both have version tags but they differ → conflict
+        return bool(qv and cv and qv != cv)
 
-def match_score(query, entry: TrackEntry, query_artist: str) -> float:
-    query_title = TrackTitleHelpers.core_title(query)
-    query_artist = TrackTitleHelpers.normalize(query_artist)
+    @staticmethod
+    def match_score(query, entry: TrackEntry, query_artist: str) -> float:
+        query_title = TrackTitleHelpers.core_title(query)
+        query_artist = TrackTitleHelpers.normalize(query_artist)
 
-    cand_title = entry.core_title
-    cand_artist = entry.artist
+        cand_title = entry.core_title
+        cand_artist = entry.artist
 
-    # Hard block if artist would not match
-    if artist_conflict(query_artist, cand_artist):
-        return 0
-    _, cand_raw_title = TrackTitleHelpers.split(entry.path.stem)
-    if version_conflict(query, cand_raw_title):
-        return 0
-
-    # 🚨 HARD RULE: single-token titles cannot match loosely
-    if TrackTitleHelpers.is_single_token_title(query_title):
-        # require exact token match only
-        if query_title != cand_title:
+        # Hard block if artist would not match
+        if artist_conflict(query_artist, cand_artist):
+            return 0
+        _, cand_raw_title = TrackTitleHelpers.split(entry.path.stem)
+        if version_conflict(query, cand_raw_title):
             return 0
 
-        title_score = 100
-    else:
-        title_score = fuzz.WRatio(query_title, cand_title)
+        # 🚨 HARD RULE: single-token titles cannot match loosely
+        if TrackTitleHelpers.is_single_token_title(query_title):
+            # require exact token match only
+            if query_title != cand_title:
+                return 0
 
-    artist_score = (
-        fuzz.WRatio(query_artist, entry.artist)
-        if query_artist else 0
-    )
-
-    # weak full-context signal
-    context_score = fuzz.partial_ratio(
-        TrackTitleHelpers.normalize(query),
-        entry.full_norm
-    )
-
-    return (
-        title_score * 0.85 +
-        artist_score * 0.10 +
-        context_score * 0.05
-    )
-
-
-def find_matching_tracks(tracks: List[str], index: TrackIndex) -> None:
-    found = 0
-
-    for idx, track in enumerate(tracks):
-        artist, title = TrackTitleHelpers.split(track)
-
-        best = None
-        best_score = 0
-
-        for entry in index.tracks:
-            score = match_score(title, entry, artist)
-
-            if score > best_score:
-                best_score = score
-                best = entry
-
-        prefix = f"[{idx + 1} / {len(tracks)}]"
-        if best and best_score >= MIN_SCORE:
-            print(
-                f"{prefix} FOUND: {track}\n"
-                f"    -> {best.path} ({best_score:.0f}%)"
-            )
-            found += 1
+            title_score = 100
         else:
-            print(f"{prefix} NOT FOUND: {track}")
+            title_score = fuzz.WRatio(query_title, cand_title)
 
-    print()
-    print(f"{found}/{len(tracks)} tracks found")
+        artist_score = (
+            fuzz.WRatio(query_artist, entry.artist)
+            if query_artist else 0
+        )
+
+        # weak full-context signal
+        context_score = fuzz.partial_ratio(
+            TrackTitleHelpers.normalize(query),
+            entry.full_norm
+        )
+
+        return (
+            title_score * 0.85 +
+            artist_score * 0.10 +
+            context_score * 0.05
+        )
+
+    @staticmethod
+    def find_matching_tracks(tracks: List[str], index: TrackIndex) -> None:
+        found = 0
+
+        for idx, track in enumerate(tracks):
+            artist, title = TrackTitleHelpers.split(track)
+
+            best = None
+            best_score = 0
+
+            for entry in index.tracks:
+                score = match_score(title, entry, artist)
+
+                if score > best_score:
+                    best_score = score
+                    best = entry
+
+            prefix = f"[{idx + 1} / {len(tracks)}]"
+            if best and best_score >= MIN_SCORE:
+                print(
+                    f"{prefix} FOUND: {track}\n"
+                    f"    -> {best.path} ({best_score:.0f}%)"
+                )
+                found += 1
+            else:
+                print(f"{prefix} NOT FOUND: {track}")
+
+        print()
+        print(f"{found}/{len(tracks)} tracks found")
 
 
 # ---------------------------
@@ -347,7 +351,7 @@ def main():
 
     all_tracks = old_tracks + new_tracks
 
-    find_matching_tracks(all_tracks, index)
+    TrackMatcher.find_matching_tracks(all_tracks, index)
 
 
 if __name__ == "__main__":
