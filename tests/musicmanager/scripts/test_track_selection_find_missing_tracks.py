@@ -62,6 +62,16 @@ class TrackSelectionFindMissingTracksTest(unittest.TestCase):
         self.assertTrue(version_conflict(query_title, TrackTitleHelpers.split(library_track)[1]))
         self.assertLess(match_score(query_title, entry, query_artist), MIN_SCORE)
 
+    def test_numbered_underscore_filename_matches_spreadsheet_title(self):
+        query_track = "Miguel Ante - Whisper Secrets"
+        library_track = "01-miguel_ante-whisper_secrets"
+
+        query_artist, query_title = TrackTitleHelpers.split(query_track)
+        entry = make_entry(library_track)
+
+        self.assertEqual(TrackTitleHelpers.split(library_track), ("miguel ante", "whisper secrets"))
+        self.assertGreaterEqual(match_score(query_title, entry, query_artist), MIN_SCORE)
+
 
 if __name__ == "__main__":
     unittest.main()

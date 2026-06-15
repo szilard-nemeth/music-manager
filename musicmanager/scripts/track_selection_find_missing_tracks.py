@@ -57,9 +57,20 @@ class TrackTitleHelpers:
 
     @staticmethod
     def split(track_name: str) -> Tuple[str, str]:
+        # Supported filename formats:
+        #   "Artist - Title"              e.g. Miguel Ante - Whisper Secrets
+        #   "NN-artist_name-track_title"  e.g. 01-miguel_ante-whisper_secrets
         parts = track_name.split(" - ", 1)
         if len(parts) == 2:
             return parts[0], parts[1]
+
+        stem = re.sub(r"^\d+-", "", track_name)
+        hyphen_parts = stem.split("-", 1)
+        if len(hyphen_parts) == 2:
+            artist = hyphen_parts[0].replace("_", " ")
+            title = hyphen_parts[1].replace("_", " ")
+            return artist, title
+
         return "", track_name
 
     @staticmethod
