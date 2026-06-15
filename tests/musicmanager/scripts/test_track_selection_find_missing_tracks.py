@@ -8,6 +8,7 @@ from musicmanager.scripts.track_selection_find_missing_tracks import (
     match_score,
     version_conflict,
 )
+from musicmanager.scripts.track_selection_find_missing_tracks_debug import match_score_details
 
 
 def make_entry(stem: str) -> TrackEntry:
@@ -71,6 +72,21 @@ class TrackSelectionFindMissingTracksTest(unittest.TestCase):
 
         self.assertEqual(TrackTitleHelpers.split(library_track), ("miguel ante", "whisper secrets"))
         self.assertGreaterEqual(match_score(query_title, entry, query_artist), MIN_SCORE)
+
+    def test_match_score_details_exposes_component_scores(self):
+        query_track = "Guy J - Against The Wall"
+        library_track = "Guy J - The Fall (Original Mix)"
+
+        query_artist, query_title = TrackTitleHelpers.split(query_track)
+        entry = make_entry(library_track)
+        breakdown = match_score_details(query_title, entry, query_artist)
+
+        self.assertFalse(breakdown.blocked)
+        self.assertEqual(breakdown.query_core_title, "against the wall")
+        self.assertEqual(breakdown.candidate_core_title, "the fall")
+        self.assertGreater(breakdown.artist_score, 90)
+        self.assertGreater(breakdown.title_score, 80)
+        self.assertGreaterEqual(breakdown.score, MIN_SCORE)
 
 
 if __name__ == "__main__":
