@@ -274,10 +274,10 @@ class TrackMatcher:
         cand_artist = entry.artist
 
         # Hard block if artist would not match
-        if artist_conflict(query_artist, cand_artist):
+        if TrackMatcher.artist_conflict(query_artist, cand_artist):
             return 0
         _, cand_raw_title = TrackTitleHelpers.split(entry.path.stem)
-        if version_conflict(query, cand_raw_title):
+        if TrackMatcher.version_conflict(query, cand_raw_title):
             return 0
 
         # 🚨 HARD RULE: single-token titles cannot match loosely
@@ -318,7 +318,7 @@ class TrackMatcher:
             best_score = 0
 
             for entry in index.tracks:
-                score = match_score(title, entry, artist)
+                score = TrackMatcher.match_score(title, entry, artist)
 
                 if score > best_score:
                     best_score = score
