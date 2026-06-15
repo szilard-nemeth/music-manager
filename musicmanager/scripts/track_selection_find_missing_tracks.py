@@ -64,6 +64,9 @@ class TrackTitleHelpers:
 
         return text.strip()
 
+    def is_single_token_title(text: str) -> bool:
+        return len(text.split()) == 1
+
 
 # ---------------------------
 # INDEX
@@ -193,7 +196,17 @@ def match_score(query, entry: TrackEntry, query_artist: str) -> float:
     query_title = TrackTitleHelpers.core_title(query)
     query_artist = TrackTitleHelpers.normalize(query_artist)
 
-    title_score = fuzz.WRatio(query_title, entry.core_title)
+    cand_title = entry.core_title
+
+    # 🚨 HARD RULE: single-token titles cannot match loosely
+    if TrackTitleHelpers.is_single_token_title(query_title):
+        # require exact token match only
+        if query_title != cand_title:
+            return 0
+
+        title_score = 100
+    else:
+        title_score = fuzz.WRatio(query_title, cand_title)
 
     artist_score = (
         fuzz.WRatio(query_artist, entry.artist)
@@ -206,13 +219,11 @@ def match_score(query, entry: TrackEntry, query_artist: str) -> float:
         entry.full_norm
     )
 
-    score = (
+    return (
         title_score * 0.85 +
         artist_score * 0.10 +
         context_score * 0.05
     )
-
-    return score
 
 
 def find_matching_tracks(tracks: List[str], index: TrackIndex) -> None:
