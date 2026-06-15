@@ -30,6 +30,11 @@ class TrackTitleHelpers:
         "remastered", "club", "live", "stereo", "feat", "featuring"
     }
 
+    VERSION_WORDS = {
+        "remix", "edit", "mix", "revisit", "rework",
+        "reimagined", "version", "dub", "reconstruction"
+    }
+
     @staticmethod
     def normalize(text: str) -> str:
         text = text.lower()
@@ -64,8 +69,31 @@ class TrackTitleHelpers:
 
         return text.strip()
 
+    @staticmethod
     def is_single_token_title(text: str) -> bool:
         return len(text.split()) == 1
+
+    @staticmethod
+    def extract_version(text: str) -> set:
+        text = text.lower()
+        tokens = re.sub(r"[^a-z0-9]+", " ", text).split()
+        return set(w for w in tokens if w in TrackTitleHelpers.VERSION_WORDS)
+
+    @staticmethod
+    def extract_parenthetical_suffix(text: str) -> str:
+        """Normalize parenthetical remix/version suffixes for comparison."""
+        matches = re.findall(r"\(([^)]*)\)", text.lower())
+        if not matches:
+            return ""
+
+        suffix = matches[-1]
+        suffix = re.sub(r"[^a-z0-9]+", " ", suffix)
+        tokens = [
+            t for t in suffix.split()
+            if t not in TrackTitleHelpers.NOISE_WORDS
+            and t not in TrackTitleHelpers.VERSION_WORDS
+        ]
+        return " ".join(tokens)
 
 
 # ---------------------------
@@ -202,6 +230,19 @@ def artist_conflict(query_artist: str, candidate_artist: str) -> bool:
     # no overlap at all → strong signal mismatch
     return len(query & candidate) == 0
 
+def version_conflict(q: str, c: str) -> bool:
+    q_suffix = TrackTitleHelpers.extract_parenthetical_suffix(q)
+    c_suffix = TrackTitleHelpers.extract_parenthetical_suffix(c)
+
+    if q_suffix != c_suffix and (q_suffix or c_suffix):
+        return True
+
+    qv = TrackTitleHelpers.extract_version(q)
+    cv = TrackTitleHelpers.extract_version(c)
+
+    # if both have version tags but they differ → conflict
+    return bool(qv and cv and qv != cv)
+
 
 def match_score(query, entry: TrackEntry, query_artist: str) -> float:
     query_title = TrackTitleHelpers.core_title(query)
@@ -212,6 +253,9 @@ def match_score(query, entry: TrackEntry, query_artist: str) -> float:
 
     # Hard block if artist would not match
     if artist_conflict(query_artist, cand_artist):
+        return 0
+    _, cand_raw_title = TrackTitleHelpers.split(entry.path.stem)
+    if version_conflict(query, cand_raw_title):
         return 0
 
     # 🚨 HARD RULE: single-token titles cannot match loosely
@@ -245,7 +289,7 @@ def match_score(query, entry: TrackEntry, query_artist: str) -> float:
 def find_matching_tracks(tracks: List[str], index: TrackIndex) -> None:
     found = 0
 
-    for track in tracks:
+    for idx, track in enumerate(tracks):
         artist, title = TrackTitleHelpers.split(track)
 
         best = None
@@ -258,14 +302,15 @@ def find_matching_tracks(tracks: List[str], index: TrackIndex) -> None:
                 best_score = score
                 best = entry
 
+        prefix = f"[{idx + 1} / {len(tracks)}]"
         if best and best_score >= MIN_SCORE:
             print(
-                f"FOUND: {track}\n"
+                f"{prefix} FOUND: {track}\n"
                 f"    -> {best.path} ({best_score:.0f}%)"
             )
             found += 1
         else:
-            print(f"NOT FOUND: {track}")
+            print(f"{prefix} NOT FOUND: {track}")
 
     print()
     print(f"{found}/{len(tracks)} tracks found")
